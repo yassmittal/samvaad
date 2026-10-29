@@ -249,6 +249,15 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   context-aware translation in Phase 5 is the point of the product.
 - **Trade-off:** The 2.5 s median in `MVP.md` §7 is now at risk. **Yash to decide** whether
   "done" becomes ≤ 3.0 s, or whether we keep 2.5 s and build the speculative step below.
+- **Measured in Phase 2 (29 Oct, 11 utterances, real Meta, synthetic voices):** speech end
+  → final transcript 0.82 to 0.92 s (on budget). Final transcript → first translated word
+  1.0 to 2.8 s, **median ≈ 1.4 s, over the 1.2 s budget**. Speech end → translation
+  complete: **median ≈ 2.5 s**, range 1.6 to 3.8 s. Browser speech (Phase 3) comes on top.
+  The slow step is Muse Spark reasoning before its first word. Fixes to try, in order:
+  1. Log `usage.completion_tokens_details.reasoning_tokens` per utterance, and trim the
+     prompt if the code-line instruction makes it reason more.
+  2. Speculative translation of stable partials (below).
+  3. A model or effort change, if Meta ships a non-reasoning option.
 - **Revisit when:** Phase 2 measures real conversations. If the median is over budget,
   translate the partial transcript once it has been stable for ~300 ms, and keep the result
   if the final transcript matches (D-006's "revisit"). Phase 7 can also measure whether the

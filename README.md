@@ -8,7 +8,8 @@ and **Muse Spark** (context-aware translation).
 - [`MVP.md`](MVP.md): what it is and why.
 - [`docs/`](docs/README.md): architecture, decisions, coding standards and the phased plan.
 
-> Status: Phase 1, table mode with live captions. See [`docs/README.md`](docs/README.md).
+> Status: Phases 0 to 2 done: table mode with live captions and streamed translation.
+> Phase 3 (speaking the translation) is next. See [`docs/README.md`](docs/README.md).
 
 ## Layout
 
@@ -42,7 +43,8 @@ bun run dev:web      # http://localhost:3400
 ```
 
 Open http://localhost:3400 and pick **Table mode** (or go straight to http://localhost:3400/table).
-Choose the two languages, tap the microphone and speak.
+Choose the two languages, tap the microphone and speak. Each sentence appears as you say it,
+then its translation into the other language streams in under it, with the delay it took.
 
 ## On a phone
 

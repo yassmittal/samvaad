@@ -2,6 +2,7 @@ import { clientMessageSchema } from '@samvaad/shared';
 import { findErrorCodeForInvalidMessage } from '../lib/find-error-code-for-invalid-message';
 import type { ConversationConnection } from './conversation-connection';
 import { handleMicrophoneState } from './handle-microphone-state';
+import { handlePlaybackStarted } from './handle-playback-started';
 import { handleStartTableSession } from './handle-start-table-session';
 
 /** Parses one JSON text frame with the shared schema and hands it to its handler. */
@@ -36,6 +37,9 @@ export function handleClientMessage(connection: ConversationConnection, messageT
       return;
     case 'microphone_state':
       handleMicrophoneState(connection, message);
+      return;
+    case 'playback_started':
+      handlePlaybackStarted(connection, message);
       return;
   }
 }

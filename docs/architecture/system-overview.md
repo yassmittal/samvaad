@@ -88,7 +88,7 @@ they need them.
 | `translation_complete { utteranceId, targetLanguageCode, text, timings }` | 2 | Speak this now |
 | `room_state { roomCode, participants }` | 4 | Who is here |
 | `conversation_recap { languageCode, text }` | 5 | End-of-conversation recap |
-| `error { code, message }` | 1 | Something went wrong, with a code the UI can explain |
+| `error { code, message, utteranceId? }` | 1 | Something went wrong, with a code the UI can explain. `utteranceId` when it concerns one utterance (Phase 2) |
 
 ## Known risks
 

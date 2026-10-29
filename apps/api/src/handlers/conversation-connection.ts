@@ -1,7 +1,12 @@
 import type { LanguageCode, ServerMessage } from '@samvaad/shared';
 import type { FastifyBaseLogger } from 'fastify';
+import { createOrderedDelivery } from '../lib/create-ordered-delivery';
 import type { ApiEnv } from '../plugins/env';
 import type { MetaTranscriptionStream } from '../services/meta-transcription-stream';
+import {
+  createMetaTranslationClient,
+  type MetaTranslationClient,
+} from '../services/meta-translation-client';
 
 export type ActiveTranscription = {
   stream: MetaTranscriptionStream;
@@ -20,6 +25,11 @@ export type ConversationConnection = {
   /** Every upstream socket still open, including ones finishing their last utterance. */
   openTranscriptionStreams: Set<MetaTranscriptionStream>;
   hasReportedMicrophoneNotOpen: boolean;
+  translationClient: MetaTranslationClient;
+  /** Sends translation messages in utterance order, however fast each one finishes. */
+  translationDelivery: ReturnType<typeof createOrderedDelivery<ServerMessage>>;
+  /** One per translation still streaming, so a closed socket can cancel them. */
+  translationAbortControllers: Set<AbortController>;
 };
 
 type ConversationConnectionOptions = Pick<
@@ -36,5 +46,13 @@ export function createConversationConnection(
     activeTranscription: null,
     openTranscriptionStreams: new Set(),
     hasReportedMicrophoneNotOpen: false,
+    translationClient: createMetaTranslationClient({
+      chatCompletionsUrl: options.env.META_CHAT_COMPLETIONS_URL,
+      modelId: options.env.META_TRANSLATION_MODEL_ID,
+      metaApiKey: options.env.META_API_KEY,
+      logger: options.logger,
+    }),
+    translationDelivery: createOrderedDelivery<ServerMessage>(options.sendServerMessage),
+    translationAbortControllers: new Set(),
   };
 }

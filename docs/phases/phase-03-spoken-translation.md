@@ -29,6 +29,22 @@ while the phone speaks, so it never translates itself. **Table mode is done.**
 ### `apps/api`
 - Store `playback_started` timings with the utterance and log the end-to-end latency.
 
+### Where Phase 2 left things (29 Oct)
+- `playback_started { utteranceId, startedAtEpochMilliseconds }` is already in
+  `packages/shared` and parsed by the API (`handlers/handle-playback-started.ts`, which only
+  logs it). Phase 3 stores it and computes speech end → playback start.
+- `translation_complete` carries `targetLanguageCode` and `timings`, and arrives in
+  utterance order (the API's `translationDelivery`), so the speech queue can speak them as
+  they come.
+- **Mute was moved here from Phase 1.** `useMicrophone()` has only `open` and `close`. Mic
+  gating while speaking can close and reopen it (each reopen is a new Meta stream, about
+  0.5 s to connect, with frames queued meanwhile), or add a mute that stops sending frames
+  but keeps the capture. Mind that Meta closes a stream that gets no audio (D-005: pacing),
+  so a muted-but-open stream must still be ended with `microphone_state { isOpen: false }`.
+- The latency meter (`features/conversation/latency-meter.tsx`) currently measures speech
+  end → translation complete. Switch it to speech end → playback start.
+- Test with `bun run dev:phone` (HTTP/2 tunnels, see Phase 1 build notes).
+
 ## Out of scope
 Rooms (Phase 4). A better voice than the browser's (Phase 7).
 

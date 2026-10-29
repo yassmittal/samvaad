@@ -6,6 +6,7 @@ import {
   type MetaTranscriptionStream,
 } from '../services/meta-transcription-stream';
 import type { ConversationConnection } from './conversation-connection';
+import { startUtteranceTranslation } from './translate-utterance';
 
 // Meta caps a session at 60 minutes (D-005). Hand over to a fresh stream well before that.
 export const TRANSCRIPTION_STREAM_ROTATION_MILLISECONDS = 55 * 60 * 1000;
@@ -42,6 +43,9 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
         if (text.trim().length === 0) {
           return;
         }
+        const transcriptFinalAtEpochMilliseconds = Date.now();
+        const speechEndedAtEpochMilliseconds =
+          utterance.speechEndedAtEpochMilliseconds ?? transcriptFinalAtEpochMilliseconds;
         connection.sendServerMessage({
           type: 'transcript_final',
           utteranceId: utterance.utteranceId,
@@ -49,7 +53,13 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
           // Table mode: the transcriber doesn't say which of the two languages it heard (D-008).
           languageCode: null,
           text,
-          speechEndedAtEpochMilliseconds: utterance.speechEndedAtEpochMilliseconds ?? Date.now(),
+          speechEndedAtEpochMilliseconds,
+        });
+        startUtteranceTranslation(connection, {
+          utteranceId: utterance.utteranceId,
+          utteranceText: text,
+          speechEndedAtEpochMilliseconds,
+          transcriptFinalAtEpochMilliseconds,
         });
       },
       onFailed() {
@@ -101,7 +111,7 @@ export function endTranscription(connection: ConversationConnection): void {
   connection.activeTranscription = null;
 }
 
-/** The browser is gone: nobody is left to receive results, so close everything now. */
+/** The browser is gone: nobody is left to receive results, so stop everything now. */
 export function closeAllTranscriptions(connection: ConversationConnection): void {
   if (connection.activeTranscription) {
     clearTimeout(connection.activeTranscription.rotationTimeout);
@@ -111,4 +121,8 @@ export function closeAllTranscriptions(connection: ConversationConnection): void
     stream.close();
   }
   connection.openTranscriptionStreams.clear();
+  for (const abortController of connection.translationAbortControllers) {
+    abortController.abort();
+  }
+  connection.translationAbortControllers.clear();
 }

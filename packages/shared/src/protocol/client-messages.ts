@@ -22,11 +22,20 @@ export const microphoneStateMessageSchema = z.object({
   isOpen: z.boolean(),
 });
 
+/** The listener's browser started speaking a translation (Phase 3), for the latency meter. */
+export const playbackStartedMessageSchema = z.object({
+  type: z.literal('playback_started'),
+  utteranceId: z.string(),
+  startedAtEpochMilliseconds: z.number(),
+});
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   startTableSessionMessageSchema,
   microphoneStateMessageSchema,
+  playbackStartedMessageSchema,
 ]);
 
 export type StartTableSessionMessage = z.infer<typeof startTableSessionMessageSchema>;
 export type MicrophoneStateMessage = z.infer<typeof microphoneStateMessageSchema>;
+export type PlaybackStartedMessage = z.infer<typeof playbackStartedMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

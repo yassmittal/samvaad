@@ -6,12 +6,12 @@
  *   bun run smoke:translate --model muse-spark-1.2 --reasoning-effort low --text "..."
  */
 import { parseArgs } from 'node:util';
+import { parseServerSentEvents } from '../apps/api/src/lib/parse-server-sent-events';
 import {
   DEFAULT_TRANSLATION_MODEL_ID,
   META_CHAT_COMPLETIONS_URL,
   readMetaApiKeyOrExit,
 } from './lib/meta-model-api';
-import { parseServerSentEvents } from './lib/parse-server-sent-events';
 
 const DEFAULT_HINDI_TEXT =
   'नमस्ते, हमारे पास जयपुर की नीली मिट्टी के दो सौ फूलदान तैयार हैं, और डिलीवरी दो हफ़्ते में हो जाएगी।';

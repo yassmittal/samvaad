@@ -1,49 +1,29 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import type { FastifyInstance } from 'fastify';
-import { buildServer } from '../build-server';
-import { parseApiEnv } from '../plugins/env';
+import type { FakeMetaTranscriptionServer } from '../test-support/fake-meta-transcription-server';
 import {
-  type FakeMetaTranscriptionServer,
-  startFakeMetaTranscriptionServer,
-} from '../test-support/fake-meta-transcription-server';
-import {
-  connectTestBrowserClient,
-  type TestBrowserClient,
-} from '../test-support/test-browser-client';
+  type ConversationTestServers,
+  startConversationTestServers,
+} from '../test-support/start-conversation-test-servers';
+import type { TestBrowserClient } from '../test-support/test-browser-client';
 import { waitForCondition } from '../test-support/wait-for-condition';
 
 const AUDIO_FRAME_BYTE_COUNT = 2560;
 
+let servers: ConversationTestServers;
 let fakeMetaServer: FakeMetaTranscriptionServer;
-let server: FastifyInstance;
 let browser: TestBrowserClient;
 
-async function startServers(
-  fakeServerOptions: Parameters<typeof startFakeMetaTranscriptionServer>[0] = {},
-) {
-  fakeMetaServer = startFakeMetaTranscriptionServer(fakeServerOptions);
-  const env = parseApiEnv({
-    META_API_KEY: 'test-key',
-    META_TRANSCRIPTION_URL: fakeMetaServer.url,
-  });
-  server = await buildServer({ env, isLoggingEnabled: false });
-  const httpUrl = await server.listen({ port: 0, host: '127.0.0.1' });
-  browser = await connectTestBrowserClient(`${httpUrl.replace('http', 'ws')}/v1/conversation`);
+async function startServers(options: Parameters<typeof startConversationTestServers>[0] = {}) {
+  servers = await startConversationTestServers(options);
+  fakeMetaServer = servers.fakeMetaServer;
+  browser = servers.browser;
 }
 
-async function startTableSessionWithMicrophoneOpen() {
-  browser.sendJson({ type: 'start_table_session', languageCodes: ['hi', 'en'] });
-  await browser.waitForMessage('session_ready');
-  browser.sendJson({ type: 'microphone_state', isOpen: true });
-  await waitForCondition(() => fakeMetaServer.connections[0]?.handshake != null, 'a handshake');
-  return fakeMetaServer.connections[0] as NonNullable<(typeof fakeMetaServer.connections)[0]>;
+function startTableSessionWithMicrophoneOpen() {
+  return servers.startTableSessionWithMicrophoneOpen();
 }
 
-afterEach(async () => {
-  browser.socket.close();
-  await server.close();
-  fakeMetaServer.stop();
-});
+afterEach(() => servers.stop());
 
 describe('conversation socket, table mode', () => {
   beforeEach(() => startServers());
@@ -201,7 +181,7 @@ describe('conversation socket, table mode', () => {
 });
 
 describe('conversation socket, when Meta finishes the utterance on endStream', () => {
-  beforeEach(() => startServers({ transcriptOnEndStream: 'Hello there.' }));
+  beforeEach(() => startServers({ transcription: { transcriptOnEndStream: 'Hello there.' } }));
 
   test('the final transcript still reaches the browser after the microphone closes', async () => {
     await startTableSessionWithMicrophoneOpen();
@@ -214,7 +194,7 @@ describe('conversation socket, when Meta finishes the utterance on endStream', (
 });
 
 describe('conversation socket, when Meta rejects the handshake', () => {
-  beforeEach(() => startServers({ isHandshakeRejected: true }));
+  beforeEach(() => startServers({ transcription: { isHandshakeRejected: true } }));
 
   test('the browser gets UPSTREAM_UNAVAILABLE', async () => {
     browser.sendJson({ type: 'start_table_session', languageCodes: ['hi', 'en'] });

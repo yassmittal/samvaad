@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { CaptionList } from './caption-list';
 import { ConversationStatus } from './conversation-status';
 import { LanguagePairPicker } from './language-pair-picker';
+import { LatencyMeter } from './latency-meter';
 import { MicrophoneButton } from './microphone-button';
 import { useTableConversation } from './use-table-conversation';
 
@@ -23,11 +24,11 @@ export function TableConversation() {
   return (
     <main className="mx-auto flex h-dvh w-full max-w-xl flex-col">
       <header className="flex flex-col gap-4 border-b border-stone-200 px-4 pb-4 pt-5">
-        <div className="flex items-baseline justify-between">
-          <Link href="/" className="text-xl font-semibold tracking-tight">
-            Samvaad
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <Link href="/" className="whitespace-nowrap text-xl font-semibold tracking-tight">
+            Samvaad <span className="text-sm font-normal text-stone-500">Table mode</span>
           </Link>
-          <span className="text-sm text-stone-500">Table mode</span>
+          <LatencyMeter captions={captions} />
         </div>
         <LanguagePairPicker
           languagePair={languagePair}
