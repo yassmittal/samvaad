@@ -27,7 +27,7 @@ When a decision changes, the doc changes first.
 
 | Phase | Planned (IST) | State |
 |-------|---------------|-------|
-| 0 — Foundations and API check | Thu 29 Oct | Not started |
+| 0 — Foundations and API check | Thu 29 Oct | Built. Live API check waits on the Meta key |
 | 1 — Live captions (table mode) | Fri 30 Oct | Not started |
 | 2 — Translated captions | Sat 31 Oct, morning | Not started |
 | 3 — Spoken translation (**table mode done**) | Sat 31 Oct, afternoon | Not started |

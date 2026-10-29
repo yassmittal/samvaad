@@ -61,6 +61,29 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   LiteLLM shows OpenAI-style events (`conversation.item.input_audio_transcription.delta` /
   `.completed`), Pipecat shows native ones (`speechStart`, partials, `speechEnd`,
   `speechComplete`) with the key sent in a handshake frame. Phase 0 records the truth here.
+- **Documented by Meta (dev.meta.ai voice reference and schemas, read 29 Oct):** the native
+  protocol, which settles the disagreement above. LiteLLM's events are its own OpenAI-style
+  translation of it. `scripts/smoke-transcribe.ts` is built on this. **Live check pending:**
+  it has not yet been run against the real API (waiting on the key).
+  - **Handshake:** the first text frame, within 10 s. The key is *not* an HTTP header:
+    `{ authorization: { accessToken: "Bearer <key>" }, model, audioEncoding, mode,
+    languageBias?, keywords?, partialMode?, emitAudioProgress? }`. The server answers with
+    `{ sessionId }`, the only frame without a `type`.
+  - **Audio:** binary frames of raw PCM16 little-endian mono. `audioEncoding` is
+    `PCM_16KHZ` or `PCM_24KHZ` (native; 16 kHz is resampled by Meta). Paced in real time:
+    audio sent too far ahead, or too slowly, closes the socket with `1008`.
+  - **Modes:** `PUSH_TO_TALK` (default), `ENDPOINTING`, `DIARIZATION`. We use `ENDPOINTING`.
+  - **Events, dispatched on `type`:** `speechStart { turnId }` → `transcript { transcript,
+    final }` (cumulative partials, no `turnId`: they belong to the latest `speechStart`) →
+    `speechEnd { turnId }` → `speechComplete { turnId, transcript }` (the final text, with
+    punctuation). Also `speaker`, `audioProgress` and `error { message, errorCode? }`.
+    Every event carries `audioProcessedMs`. Unknown types are to be ignored.
+  - **Language bias** is a list of English language *names* (`["Hindi", "English"]`), not
+    ISO codes, so `englishName` in `supported-languages.ts` doubles as the bias value.
+    Omitting it means auto-detect. **Keywords** are a list of strings, set at the handshake.
+  - **Ending:** send `{ "type": "endStream" }`, then keep reading until Meta closes with
+    `1000`. Close codes: `1008` bad request or pacing (don't retry as is), `1011` server
+    failure or "Max session duration reached" (reconnect), `1013` rate limited (back off).
 
 ## D-006 — Translation: Muse Spark, one finished utterance at a time, streamed
 
@@ -73,6 +96,14 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Trade-off:** You hear nothing until the speaker pauses. Long monologues feel slow.
 - **Revisit when:** latency is measured in Phase 2. If utterances are long, translate
   at clause boundaries in the partials.
+- **Documented by Meta (dev.meta.ai, read 29 Oct), live check pending:**
+  `POST https://api.meta.ai/v1/chat/completions` with `Authorization: Bearer <key>`,
+  OpenAI-compatible. Model ids: `muse-spark-1.3` (recommended, the smoke script's default),
+  `1.2`, `1.1` and cheaper `-contributor` variants, which let Meta train on the prompts, so we
+  don't use them for people's conversations. Streaming is SSE: `data: {chunk}` lines with
+  the text in `choices[0].delta.content`, ending with `data: [DONE]`. Muse Spark always
+  reasons: `reasoning_effort: "none"` is a 400, so we ask for `"minimal"` to keep latency
+  down. The output cap is `max_completion_tokens`.
 
 ## D-007 — Text to speech: the browser's `speechSynthesis` first
 
@@ -98,6 +129,9 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Which language was spoken (table mode):** the transcriber is biased to both languages.
   If Phase 0 shows it reports the detected language, we use that. If not, Muse Spark is
   asked to translate "into whichever of the two languages this is not".
+  **Phase 0, from Meta's docs:** no event schema has a language field, so expect the Muse
+  Spark fallback. `smoke:transcribe` prints any undocumented field it sees, so the live run
+  will show if a language field exists anyway.
 
 ## D-009 — Audio path: AudioWorklet → 16 kHz mono PCM16 → binary WebSocket frames
 
@@ -142,3 +176,15 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   tests are fast, free and run offline. The web app is checked by hand on real phones.
 - **Why:** Tests that call the real API cost credits and fail when the network does.
 - **Trade-off:** The fakes can drift from the real API. Phase 0's smoke scripts are the check.
+- **Phase 0 note:** the API's socket tests open a real listening server on a random port and
+  use Bun's built-in `WebSocket`. `@fastify/websocket`'s `injectWS` doesn't work under Bun,
+  because it relies on internals of the `ws` package, which Bun replaces.
+
+## D-013 — TypeScript 5.9, not 7
+
+- **Decision:** Every workspace pins `typescript ~5.9.3`, although npm's `latest` is 7.0.
+- **Why:** TypeScript 7 is the native (Go) compiler. `next build` and `next typegen` call
+  TypeScript's JavaScript API, and 5.9 is what Next.js 16 is built and tested against. Six
+  days is not the time to find out.
+- **Trade-off:** Slower typechecks than tsgo. Irrelevant at this size.
+- **Revisit when:** after the hackathon, once Next.js documents TypeScript 7 support.

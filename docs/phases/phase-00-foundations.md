@@ -68,14 +68,36 @@ and a spend limit alert set.
 Microphone, captions, translation in the app, rooms.
 
 ## Definition of done
-- [ ] `bun install` from a clean folder works.
-- [ ] `bun run typecheck`, `bun run lint` and `bun run test` pass across all workspaces.
-- [ ] The web page shows "API ok" and "WebSocket ok".
+- [x] `bun install` from a clean folder works.
+- [x] `bun run typecheck`, `bun run lint` and `bun run test` pass across all workspaces.
+- [x] The web page shows "API ok" and "WebSocket ok".
 - [ ] `bun run smoke:translate` prints a streamed English translation of a Hindi sentence.
+  *(Script written; needs the Meta API key in `apps/api/.env`.)*
 - [ ] `bun run smoke:transcribe` prints partial and final transcripts for all three fixtures.
+  *(Script written; needs the key.)*
 - [ ] D-005 and D-006 are updated with the verified protocol, and the table-mode language
-  detection question in D-008 is answered.
-- [ ] The API stops at boot with a clear message when `META_API_KEY` is missing.
+  detection question in D-008 is answered. *(Updated from Meta's own docs; the live runs
+  confirm or correct them.)*
+- [x] The API stops at boot with a clear message when `META_API_KEY` is missing.
 
 ## Demo check
 Run both smoke scripts and see Hindi audio become Hindi text, and Hindi text become English.
+
+## Build notes (29 Oct)
+
+Where the build differs from, or adds to, the deliverables above:
+
+- **Fixtures are placeholders.** `scripts/fixtures/*.wav` were made with macOS voices
+  (`say -v Lekha`, `say -v "Aman (English (India))"`) so the API check isn't blocked on
+  recording. Replace them with our own voices; `scripts/fixtures/README.md` has the command.
+- **Ports:** web on `3400`, API on `4400`, so they don't collide with other local projects.
+  The API listens on `127.0.0.1` only: a tunnel or reverse proxy always sits in front of it.
+- **CORS and Origin check:** `ALLOWED_WEB_ORIGINS` feeds `@fastify/cors` for HTTP, and the
+  socket route checks `Origin` itself, because browsers don't apply CORS to WebSockets.
+- **Echo:** the web page sends `{ type: 'ping', sentAtEpochMilliseconds }` and shows the
+  round trip. Text that isn't JSON gets `{ type: 'error', code: 'INVALID_MESSAGE' }`.
+- **The smoke scripts** load `apps/api/.env` (`bun --env-file`), so the key lives in one place.
+  `smoke:transcribe` appends 2 s of silence so endpointing can hear the pause, measures
+  where speech ends in each file, and reports "end of speech → final transcript".
+- **Biome skips Markdown.** Biome 2.6 formats `.md` files, which would rewrite these docs
+  and `about.md`.

@@ -1,0 +1,24 @@
+{
+  "name": "samvaad",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "bun --filter @samvaad/api dev",
+    "dev:web": "bun --filter @samvaad/web dev",
+    "typecheck": "tsc --noEmit -p tsconfig.json && bun --filter '*' typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "bun test scripts && bun --filter '*' test",
+    "smoke:transcribe": "bun --env-file=apps/api/.env scripts/smoke-transcribe.ts",
+    "smoke:translate": "bun --env-file=apps/api/.env scripts/smoke-translate.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.4",
+    "@types/bun": "^1.4.4",
+    "typescript": "~5.9.3"
+  }
+}
