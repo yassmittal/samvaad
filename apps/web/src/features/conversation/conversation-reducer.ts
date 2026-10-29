@@ -6,6 +6,8 @@ export type CaptionTranslation = {
   isComplete: boolean;
   /** Speech end → whole translation received, once complete (D-011). */
   speechEndToTranslationCompleteMilliseconds: number | null;
+  /** Speech end → this phone started speaking it, once spoken (D-011). */
+  speechEndToPlaybackStartMilliseconds: number | null;
 };
 
 export type Caption = {
@@ -23,6 +25,15 @@ export type ConversationState = {
   captions: Caption[];
   latestError: { code: ErrorCode; message: string } | null;
 };
+
+/** Not from the server: this phone started speaking an utterance's translation. */
+export type PlaybackStartedEvent = {
+  type: 'playback_started';
+  utteranceId: string;
+  speechEndToPlaybackStartMilliseconds: number;
+};
+
+export type ConversationEvent = ServerMessage | PlaybackStartedEvent;
 
 export const INITIAL_CONVERSATION_STATE: ConversationState = {
   participantId: null,
@@ -61,11 +72,11 @@ function updateCaption(
 
 export function reduceConversation(
   state: ConversationState,
-  message: ServerMessage,
+  event: ConversationEvent,
 ): ConversationState {
-  switch (message.type) {
+  switch (event.type) {
     case 'session_ready':
-      return { ...state, participantId: message.participantId, latestError: null };
+      return { ...state, participantId: event.participantId, latestError: null };
 
     // Speech coming through means the earlier problem is over.
     case 'transcript_partial':
@@ -74,22 +85,23 @@ export function reduceConversation(
         ...state,
         latestError: null,
         captions: upsertTranscript(state.captions, {
-          utteranceId: message.utteranceId,
-          text: message.text,
-          isFinal: message.type === 'transcript_final',
+          utteranceId: event.utteranceId,
+          text: event.text,
+          isFinal: event.type === 'transcript_final',
         }),
       };
 
     case 'translation_delta':
       return {
         ...state,
-        captions: updateCaption(state.captions, message.utteranceId, (caption) => ({
+        captions: updateCaption(state.captions, event.utteranceId, (caption) => ({
           ...caption,
           translation: {
-            targetLanguageCode: message.targetLanguageCode,
-            text: (caption.translation?.text ?? '') + message.textDelta,
+            targetLanguageCode: event.targetLanguageCode,
+            text: (caption.translation?.text ?? '') + event.textDelta,
             isComplete: false,
             speechEndToTranslationCompleteMilliseconds: null,
+            speechEndToPlaybackStartMilliseconds: null,
           },
         })),
       };
@@ -97,26 +109,43 @@ export function reduceConversation(
     case 'translation_complete':
       return {
         ...state,
-        captions: updateCaption(state.captions, message.utteranceId, (caption) => ({
+        captions: updateCaption(state.captions, event.utteranceId, (caption) => ({
           ...caption,
           translation: {
-            targetLanguageCode: message.targetLanguageCode,
-            text: message.text,
+            targetLanguageCode: event.targetLanguageCode,
+            text: event.text,
             isComplete: true,
             speechEndToTranslationCompleteMilliseconds:
-              message.timings.translationCompleteAtEpochMilliseconds -
-              message.timings.speechEndedAtEpochMilliseconds,
+              event.timings.translationCompleteAtEpochMilliseconds -
+              event.timings.speechEndedAtEpochMilliseconds,
+            speechEndToPlaybackStartMilliseconds: null,
           },
         })),
       };
 
+    case 'playback_started':
+      return {
+        ...state,
+        captions: updateCaption(state.captions, event.utteranceId, (caption) =>
+          caption.translation
+            ? {
+                ...caption,
+                translation: {
+                  ...caption.translation,
+                  speechEndToPlaybackStartMilliseconds: event.speechEndToPlaybackStartMilliseconds,
+                },
+              }
+            : caption,
+        ),
+      };
+
     case 'error': {
       // Frames still in flight when the mic closes; expected and harmless.
-      if (message.code === 'MICROPHONE_NOT_OPEN') {
+      if (event.code === 'MICROPHONE_NOT_OPEN') {
         return state;
       }
       // A problem with one utterance belongs on its bubble, not in the status line.
-      const { utteranceId } = message;
+      const { utteranceId } = event;
       if (utteranceId !== undefined) {
         return {
           ...state,
@@ -126,7 +155,7 @@ export function reduceConversation(
           })),
         };
       }
-      return { ...state, latestError: { code: message.code, message: message.message } };
+      return { ...state, latestError: { code: event.code, message: event.message } };
     }
   }
 }

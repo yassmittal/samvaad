@@ -138,7 +138,15 @@ describe('reduceConversation', () => {
         text: 'Hello, friend.',
         isComplete: true,
         speechEndToTranslationCompleteMilliseconds: 1900,
+        speechEndToPlaybackStartMilliseconds: null,
       });
+
+      state = reduceConversation(state, {
+        type: 'playback_started',
+        utteranceId: 'utterance-1',
+        speechEndToPlaybackStartMilliseconds: 2100,
+      });
+      expect(state.captions[0]?.translation?.speechEndToPlaybackStartMilliseconds).toBe(2100);
     });
 
     test('a failed translation marks its own bubble, not the status line', () => {

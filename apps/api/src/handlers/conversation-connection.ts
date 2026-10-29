@@ -1,6 +1,10 @@
 import type { LanguageCode, ServerMessage } from '@samvaad/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { createOrderedDelivery } from '../lib/create-ordered-delivery';
+import {
+  createPlaybackTimingsStore,
+  type PlaybackTimingsStore,
+} from '../lib/create-playback-timings-store';
 import type { ApiEnv } from '../plugins/env';
 import type { MetaTranscriptionStream } from '../services/meta-transcription-stream';
 import {
@@ -30,6 +34,8 @@ export type ConversationConnection = {
   translationDelivery: ReturnType<typeof createOrderedDelivery<ServerMessage>>;
   /** One per translation still streaming, so a closed socket can cancel them. */
   translationAbortControllers: Set<AbortController>;
+  /** Translated utterances waiting for `playback_started`, to log the whole delay (D-011). */
+  playbackTimings: PlaybackTimingsStore;
 };
 
 type ConversationConnectionOptions = Pick<
@@ -54,5 +60,6 @@ export function createConversationConnection(
     }),
     translationDelivery: createOrderedDelivery<ServerMessage>(options.sendServerMessage),
     translationAbortControllers: new Set(),
+    playbackTimings: createPlaybackTimingsStore(),
   };
 }

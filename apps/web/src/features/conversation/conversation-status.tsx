@@ -7,6 +7,7 @@ import type { MicrophoneStatus } from '../microphone/use-microphone';
 type ConversationStatusProps = {
   socketStatus: ConversationSocketStatus;
   microphoneStatus: MicrophoneStatus;
+  isSpeaking: boolean;
   latestError: { code: ErrorCode; message: string } | null;
 };
 
@@ -18,6 +19,7 @@ const ERROR_EXPLANATION: Partial<Record<ErrorCode, string>> = {
 function findStatusText({
   socketStatus,
   microphoneStatus,
+  isSpeaking,
   latestError,
 }: ConversationStatusProps): { text: string; isProblem: boolean } | null {
   if (socketStatus === 'connecting') {
@@ -43,6 +45,12 @@ function findStatusText({
   }
   if (latestError) {
     return { text: ERROR_EXPLANATION[latestError.code] ?? latestError.message, isProblem: true };
+  }
+  if (isSpeaking) {
+    return {
+      text: microphoneStatus === 'open' ? 'Speaking… (microphone paused)' : 'Speaking…',
+      isProblem: false,
+    };
   }
   if (microphoneStatus === 'open') {
     return { text: 'Listening…', isProblem: false };

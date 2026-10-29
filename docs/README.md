@@ -30,7 +30,7 @@ When a decision changes, the doc changes first.
 | 0 — Foundations and API check | Thu 29 Oct | Done (fixtures still synthetic) |
 | 1 — Live captions (table mode) | Fri 30 Oct | Done (checked on the Android phone) |
 | 2 — Translated captions | Sat 31 Oct, morning | Done (checked in desktop Chromium through real Meta; quick phone check recommended) |
-| 3 — Spoken translation (**table mode done**) | Sat 31 Oct, afternoon | Not started |
+| 3 — Spoken translation (**table mode done**) | Sat 31 Oct, afternoon | Done (checked on the Android phone; latency not yet recorded in D-011) |
 | 4 — Two-phone rooms (**core done**) | Sun 1 Nov | Not started |
 | 5 — Context-aware translation and recap | Mon 2 Nov | Not started |
 | 6 — Hosting, hardening and submission | Tue 3 Nov to Wed 4 Nov | Not started |

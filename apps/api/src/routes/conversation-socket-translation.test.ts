@@ -114,4 +114,25 @@ describe('translation of finished utterances (table mode)', () => {
     sendFinishedUtterance(metaConnection, { turnId: 1, transcript: 'दूसरा।' });
     expect((await servers.browser.waitForMessage('translation_complete')).text).toBe('Works.');
   });
+
+  test('the phone reporting playback, twice or for an unknown utterance, gets no error', async () => {
+    servers = await startConversationTestServers();
+    const metaConnection = await servers.startTableSessionWithMicrophoneOpen();
+    sendFinishedUtterance(metaConnection, { turnId: 0, transcript: 'पहला।' });
+    const { utteranceId } = await servers.browser.waitForMessage('translation_complete');
+
+    for (const reportedUtteranceId of [utteranceId, utteranceId, 'unknown-utterance']) {
+      servers.browser.sendJson({
+        type: 'playback_started',
+        utteranceId: reportedUtteranceId,
+        startedAtEpochMilliseconds: Date.now(),
+      });
+    }
+    sendFinishedUtterance(metaConnection, { turnId: 1, transcript: 'दूसरा।' });
+    await servers.browser.waitForMessage('translation_complete');
+
+    expect(servers.browser.receivedMessages.some((message) => message.type === 'error')).toBe(
+      false,
+    );
+  });
 });

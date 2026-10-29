@@ -22,6 +22,9 @@ Built in three parts, in this order. Hosting first, so every later check runs on
 - Reconnect: a dropped socket reconnects with the same `participantId`; the room keeps the
   seat for `PARTICIPANT_RECONNECT_GRACE_SECONDS = 60`.
 - A screen wake lock while a room is open (D-001).
+- When Meta ends a stream with "Ingress audio slower than real-time" (seen once in Phase 3's
+  phone test, D-005: pacing) while the mic is still on, open a new stream on its own
+  instead of closing the mic and waiting for a tap.
 - Every error code has a plain sentence in the UI and a next step.
 - Design pass: big readable captions, clear "listening / translating / speaking" states,
   works one-handed on a phone. Light and dark.

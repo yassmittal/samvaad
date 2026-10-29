@@ -1,12 +1,34 @@
 'use client';
 
+import { type LanguageCode, SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
 import Link from 'next/link';
 import { CaptionList } from './caption-list';
 import { ConversationStatus } from './conversation-status';
 import { LanguagePairPicker } from './language-pair-picker';
 import { LatencyMeter } from './latency-meter';
 import { MicrophoneButton } from './microphone-button';
-import { useTableConversation } from './use-table-conversation';
+import { type LanguagePair, useTableConversation } from './use-table-conversation';
+
+function NoVoiceNotice({
+  languagePair,
+  hasVoiceForLanguage,
+}: {
+  languagePair: LanguagePair;
+  hasVoiceForLanguage: (languageCode: LanguageCode) => boolean;
+}) {
+  const unspokenLanguageNames = languagePair
+    .filter((languageCode) => !hasVoiceForLanguage(languageCode))
+    .map((languageCode) => SUPPORTED_LANGUAGE_BY_CODE[languageCode].englishName);
+  if (unspokenLanguageNames.length === 0) {
+    return null;
+  }
+  return (
+    <p className="text-sm text-amber-700">
+      Captions only for {unspokenLanguageNames.join(' and ')} on this phone: it has no voice for{' '}
+      {unspokenLanguageNames.length === 1 ? 'it' : 'them'}.
+    </p>
+  );
+}
 
 export function TableConversation() {
   const {
@@ -14,9 +36,12 @@ export function TableConversation() {
     latestError,
     socketStatus,
     microphoneStatus,
+    isSpeaking,
+    hasVoiceForLanguage,
     languagePair,
     changeLanguagePair,
     toggleMicrophone,
+    repeatTranslation,
     retryConnection,
   } = useTableConversation();
   const isConnected = socketStatus === 'open';
@@ -35,16 +60,22 @@ export function TableConversation() {
           isDisabled={!isConnected || microphoneStatus === 'open'}
           onChange={changeLanguagePair}
         />
+        <NoVoiceNotice languagePair={languagePair} hasVoiceForLanguage={hasVoiceForLanguage} />
       </header>
 
       <section className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
-        <CaptionList captions={captions} />
+        <CaptionList
+          captions={captions}
+          hasVoiceForLanguage={hasVoiceForLanguage}
+          onRepeat={repeatTranslation}
+        />
       </section>
 
       <footer className="flex flex-col items-center gap-3 border-t border-stone-200 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
         <ConversationStatus
           socketStatus={socketStatus}
           microphoneStatus={microphoneStatus}
+          isSpeaking={isSpeaking}
           latestError={latestError}
         />
         {socketStatus === 'closed' && (
@@ -58,6 +89,7 @@ export function TableConversation() {
         )}
         <MicrophoneButton
           microphoneStatus={microphoneStatus}
+          isSpeaking={isSpeaking}
           isDisabled={!isConnected}
           onToggle={() => void toggleMicrophone()}
         />

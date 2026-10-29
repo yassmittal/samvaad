@@ -126,16 +126,18 @@ async function* produceTranslationMessages({
     },
     'translation complete',
   );
+  const timings = {
+    speechEndedAtEpochMilliseconds: utterance.speechEndedAtEpochMilliseconds,
+    transcriptFinalAtEpochMilliseconds: utterance.transcriptFinalAtEpochMilliseconds,
+    firstTranslationDeltaAtEpochMilliseconds,
+    translationCompleteAtEpochMilliseconds,
+  };
+  connection.playbackTimings.remember(utteranceId, timings);
   yield {
     type: 'translation_complete',
     utteranceId,
     targetLanguageCode,
     text: translationText.trim(),
-    timings: {
-      speechEndedAtEpochMilliseconds: utterance.speechEndedAtEpochMilliseconds,
-      transcriptFinalAtEpochMilliseconds: utterance.transcriptFinalAtEpochMilliseconds,
-      firstTranslationDeltaAtEpochMilliseconds,
-      translationCompleteAtEpochMilliseconds,
-    },
+    timings,
   };
 }
