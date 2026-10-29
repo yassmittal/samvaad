@@ -29,14 +29,6 @@ function openConversationSocket(headers: Record<string, string> = {}): Promise<W
   });
 }
 
-function waitForNextMessage(socket: WebSocket): Promise<unknown> {
-  return new Promise((resolve) => {
-    socket.addEventListener('message', (event) => resolve(JSON.parse(String(event.data))), {
-      once: true,
-    });
-  });
-}
-
 function waitForClose(socket: WebSocket): Promise<number> {
   return new Promise((resolve) => {
     socket.addEventListener('close', (event) => resolve(event.code), { once: true });
@@ -63,27 +55,6 @@ describe('GET /health', () => {
 });
 
 describe('GET /v1/conversation (WebSocket)', () => {
-  test('echoes a JSON message', async () => {
-    const socket = await openConversationSocket();
-    const message = { type: 'ping', sentAtEpochMilliseconds: 1_761_700_000_000 };
-
-    const reply = waitForNextMessage(socket);
-    socket.send(JSON.stringify(message));
-
-    expect(await reply).toEqual(message);
-    socket.close();
-  });
-
-  test('answers a message that is not JSON with INVALID_MESSAGE', async () => {
-    const socket = await openConversationSocket();
-
-    const reply = waitForNextMessage(socket);
-    socket.send('not json');
-
-    expect(await reply).toMatchObject({ type: 'error', code: 'INVALID_MESSAGE' });
-    socket.close();
-  });
-
   test('closes the socket for an origin that is not allowed', async () => {
     const socket = await openConversationSocket({ origin: 'https://somewhere-else.example' });
 

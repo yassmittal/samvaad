@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 const DEFAULT_PORT = 4400;
 const DEFAULT_ALLOWED_WEB_ORIGINS = 'http://localhost:3400';
+const DEFAULT_META_TRANSCRIPTION_URL = 'wss://api.meta.ai/v1/asr/realtime';
 const MISSING_META_API_KEY_MESSAGE =
   'is required. Copy apps/api/.env.example to apps/api/.env and set your Meta Model API key.';
 
@@ -12,6 +13,8 @@ export const apiEnvSchema = z.object({
     .string({ error: MISSING_META_API_KEY_MESSAGE })
     .trim()
     .min(1, { error: MISSING_META_API_KEY_MESSAGE }),
+  /** Overridden by tests, which point it at a fake Meta server (D-012). */
+  META_TRANSCRIPTION_URL: z.url().default(DEFAULT_META_TRANSCRIPTION_URL),
   PORT: z.coerce.number().int().min(1).max(65_535).default(DEFAULT_PORT),
   ALLOWED_WEB_ORIGINS: z
     .string()

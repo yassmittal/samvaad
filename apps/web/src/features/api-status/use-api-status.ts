@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { webEnv } from '@/config/env';
-import { checkConversationSocketEcho } from '@/lib/conversation-socket/check-conversation-socket-echo';
 import { checkApiHealth } from './check-api-health';
 
 const CHECK_TIMEOUT_MILLISECONDS = 5000;
@@ -18,31 +17,22 @@ function describeError(error: unknown): string {
 
 export function useApiStatus() {
   const [healthResult, setHealthResult] = useState<CheckResult>({ state: 'checking' });
-  const [socketResult, setSocketResult] = useState<CheckResult>({ state: 'checking' });
 
-  const runChecks = useCallback(() => {
-    const apiBaseUrl = webEnv.NEXT_PUBLIC_API_BASE_URL;
+  const runCheck = useCallback(() => {
     setHealthResult({ state: 'checking' });
-    setSocketResult({ state: 'checking' });
-
-    checkApiHealth({ apiBaseUrl, timeoutMilliseconds: CHECK_TIMEOUT_MILLISECONDS })
-      .then(() => setHealthResult({ state: 'ok', detail: 'GET /health answered ok' }))
+    checkApiHealth({
+      apiBaseUrl: webEnv.NEXT_PUBLIC_API_BASE_URL,
+      timeoutMilliseconds: CHECK_TIMEOUT_MILLISECONDS,
+    })
+      .then(() => setHealthResult({ state: 'ok', detail: 'Ready to translate' }))
       .catch((error: unknown) =>
         setHealthResult({ state: 'failed', detail: describeError(error) }),
-      );
-
-    checkConversationSocketEcho({ apiBaseUrl, timeoutMilliseconds: CHECK_TIMEOUT_MILLISECONDS })
-      .then(({ roundTripMilliseconds }) =>
-        setSocketResult({ state: 'ok', detail: `Echo round trip ${roundTripMilliseconds} ms` }),
-      )
-      .catch((error: unknown) =>
-        setSocketResult({ state: 'failed', detail: describeError(error) }),
       );
   }, []);
 
   useEffect(() => {
-    runChecks();
-  }, [runChecks]);
+    runCheck();
+  }, [runCheck]);
 
-  return { healthResult, socketResult, runChecks };
+  return { healthResult, runCheck };
 }

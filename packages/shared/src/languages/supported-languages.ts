@@ -97,3 +97,7 @@ const SUPPORTED_LANGUAGE_CODES = SUPPORTED_LANGUAGES.map((language) => language.
 ];
 
 export const languageCodeSchema = z.enum(SUPPORTED_LANGUAGE_CODES);
+
+export const SUPPORTED_LANGUAGE_BY_CODE = Object.fromEntries(
+  SUPPORTED_LANGUAGES.map((language) => [language.languageCode, language]),
+) as Record<LanguageCode, SupportedLanguage>;

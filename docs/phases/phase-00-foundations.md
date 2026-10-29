@@ -71,13 +71,10 @@ Microphone, captions, translation in the app, rooms.
 - [x] `bun install` from a clean folder works.
 - [x] `bun run typecheck`, `bun run lint` and `bun run test` pass across all workspaces.
 - [x] The web page shows "API ok" and "WebSocket ok".
-- [ ] `bun run smoke:translate` prints a streamed English translation of a Hindi sentence.
-  *(Script written; needs the Meta API key in `apps/api/.env`.)*
-- [ ] `bun run smoke:transcribe` prints partial and final transcripts for all three fixtures.
-  *(Script written; needs the key.)*
-- [ ] D-005 and D-006 are updated with the verified protocol, and the table-mode language
-  detection question in D-008 is answered. *(Updated from Meta's own docs; the live runs
-  confirm or correct them.)*
+- [x] `bun run smoke:translate` prints a streamed English translation of a Hindi sentence.
+- [x] `bun run smoke:transcribe` prints partial and final transcripts for all three fixtures.
+- [x] D-005 and D-006 are updated with the verified protocol, and the table-mode language
+  detection question in D-008 is answered. *(Plus D-014: the latency budget, revised.)*
 - [x] The API stops at boot with a clear message when `META_API_KEY` is missing.
 
 ## Demo check
@@ -87,6 +84,8 @@ Run both smoke scripts and see Hindi audio become Hindi text, and Hindi text bec
 
 Where the build differs from, or adds to, the deliverables above:
 
+- **Still open:** recordings in our own voices (below). The synthetic fixtures were enough to
+  verify the protocol.
 - **Fixtures are placeholders.** `scripts/fixtures/*.wav` were made with macOS voices
   (`say -v Lekha`, `say -v "Aman (English (India))"`) so the API check isn't blocked on
   recording. Replace them with our own voices; `scripts/fixtures/README.md` has the command.

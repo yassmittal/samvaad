@@ -8,7 +8,7 @@ and **Muse Spark** (context-aware translation).
 - [`MVP.md`](MVP.md): what it is and why.
 - [`docs/`](docs/README.md): architecture, decisions, coding standards and the phased plan.
 
-> Status: Phase 0 (foundations and API check). See [`docs/README.md`](docs/README.md).
+> Status: Phase 1, table mode with live captions. See [`docs/README.md`](docs/README.md).
 
 ## Layout
 
@@ -41,7 +41,21 @@ bun run dev:api      # http://localhost:4400  (GET /health, WebSocket /v1/conver
 bun run dev:web      # http://localhost:3400
 ```
 
-Open http://localhost:3400. It should show **API ok** and **WebSocket ok**.
+Open http://localhost:3400 and pick **Table mode** (or go straight to http://localhost:3400/table).
+Choose the two languages, tap the microphone and speak.
+
+## On a phone
+
+Browsers only allow the microphone over HTTPS, so the phone reaches your laptop through two
+Cloudflare quick tunnels (`brew install cloudflared`). One command starts the tunnels and
+both dev servers, with the tunnel URLs wired in:
+
+```sh
+bun run dev:phone    # prints https://<random>.trycloudflare.com/table to open on the phone
+```
+
+The tunnel URLs change on every run. Anyone with the URL can use the app, and your Meta
+credit, while it runs, so stop it (Ctrl+C) when you're done.
 
 ## Check Meta's APIs (Phase 0)
 

@@ -81,8 +81,9 @@ they need them.
 
 | Message | Phase | Meaning |
 |---------|-------|---------|
+| `session_ready { participantId, languageCodes }` | 1 | Table session started |
 | `transcript_partial { utteranceId, text }` | 1 | Live caption, speaker only |
-| `transcript_final { utteranceId, speakerParticipantId, languageCode, text, speechEndedAt }` | 1 | Finished sentence, everyone |
+| `transcript_final { utteranceId, speakerParticipantId, languageCode, text, speechEndedAtEpochMilliseconds }` | 1 | Finished sentence, everyone. `languageCode` is `null` in table mode (D-008) |
 | `translation_delta { utteranceId, targetLanguageCode, textDelta }` | 2 | Translation arriving |
 | `translation_complete { utteranceId, targetLanguageCode, text, timings }` | 2 | Speak this now |
 | `room_state { roomCode, participants }` | 4 | Who is here |

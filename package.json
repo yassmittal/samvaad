@@ -9,6 +9,7 @@
   "scripts": {
     "dev:api": "bun --filter @samvaad/api dev",
     "dev:web": "bun --filter @samvaad/web dev",
+    "dev:phone": "bun scripts/dev-phone.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && bun --filter '*' typecheck",
     "lint": "biome check .",
     "format": "biome check --write .",

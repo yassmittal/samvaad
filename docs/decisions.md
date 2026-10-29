@@ -61,10 +61,32 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   LiteLLM shows OpenAI-style events (`conversation.item.input_audio_transcription.delta` /
   `.completed`), Pipecat shows native ones (`speechStart`, partials, `speechEnd`,
   `speechComplete`) with the key sent in a handshake frame. Phase 0 records the truth here.
-- **Documented by Meta (dev.meta.ai voice reference and schemas, read 29 Oct):** the native
-  protocol, which settles the disagreement above. LiteLLM's events are its own OpenAI-style
-  translation of it. `scripts/smoke-transcribe.ts` is built on this. **Live check pending:**
-  it has not yet been run against the real API (waiting on the key).
+- **Verified live (Phase 0, 29 Oct, `smoke:transcribe` on the three fixtures):** the native
+  protocol below, from Meta's docs (dev.meta.ai voice reference and schemas), which settles
+  the disagreement above. LiteLLM's events are its own OpenAI-style translation of it.
+  What the live run added to the docs:
+  - `turnId` starts at **0**. Partials always have `final: false`; the final text only comes in
+    `speechComplete`, which arrives in the same instant as `speechEnd`.
+  - Partials trail the audio by about 300 to 400 ms.
+  - **End of speech → `speechComplete`: 960 ms (English), 830 and 762 ms (Hinglish), within
+    D-011's 1.0 s.** For the Hindi fixture, endpointing did *not* fire within 2 s of silence;
+    the turn only completed when we sent `endStream` (2.5 s). One synthetic sample, so
+    re-measure with real voices in Phase 1. **Phase 1, real voice (Yash, Android, 29 Oct):**
+    real Hindi speech ends turns on a pause as expected, so this was the synthetic voice and we
+    don't need our own silence cut-off. Either way, **`endStream` forces the open turn to
+    complete at once**, which gives us a "commit" when the mic button is released.
+  - After `endStream` and the final events, the socket closes with **1006** (no close frame),
+    not the documented 1000. Treat a 1006 after `endStream` as a normal end.
+  - `emitAudioProgress` defaults to on and sends an `audioProgress` per 80 ms frame. The API
+    turns it off.
+  - **Code-switching:** with the bias `["Hindi", "English"]`, the Hinglish fixture comes back
+    all in Devanagari ("ब्लू पॉटरी की प्राइस पर पीस"), English words included. The English
+    fixture comes back in Latin script, with numbers as digits ("200"). **Keywords** are
+    accepted, but `["blue pottery", "price per piece"]` didn't change that output.
+  - **Bias order doesn't matter:** `["Hindi","English"]` and `["English","Hindi"]` gave the
+    same scripts for all three fixtures. Speech in a language *outside* the bias list is
+    written as one of the listed languages, so the table's two languages must be the two
+    actually spoken. The picker says so.
   - **Handshake:** the first text frame, within 10 s. The key is *not* an HTTP header:
     `{ authorization: { accessToken: "Bearer <key>" }, model, audioEncoding, mode,
     languageBias?, keywords?, partialMode?, emitAudioProgress? }`. The server answers with
@@ -96,14 +118,27 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Trade-off:** You hear nothing until the speaker pauses. Long monologues feel slow.
 - **Revisit when:** latency is measured in Phase 2. If utterances are long, translate
   at clause boundaries in the partials.
-- **Documented by Meta (dev.meta.ai, read 29 Oct), live check pending:**
+- **Verified live (Phase 0, 29 Oct, `smoke:translate`):**
   `POST https://api.meta.ai/v1/chat/completions` with `Authorization: Bearer <key>`,
-  OpenAI-compatible. Model ids: `muse-spark-1.3` (recommended, the smoke script's default),
-  `1.2`, `1.1` and cheaper `-contributor` variants, which let Meta train on the prompts, so we
-  don't use them for people's conversations. Streaming is SSE: `data: {chunk}` lines with
-  the text in `choices[0].delta.content`, ending with `data: [DONE]`. Muse Spark always
-  reasons: `reasoning_effort: "none"` is a 400, so we ask for `"minimal"` to keep latency
-  down. The output cap is `max_completion_tokens`.
+  OpenAI-compatible. **We use `muse-spark-1.3`.** `1.2` and `1.1` also work and are no
+  faster. The cheaper `-contributor` variants let Meta train on the prompts, so we don't use
+  them for people's conversations. Streaming is SSE: `data: {chunk}` lines, text in
+  `choices[0].delta.content` (the first chunk also has `role`), then a chunk with
+  `finish_reason: "stop"` and a `usage` chunk, then `data: [DONE]`. No reasoning text is
+  streamed; it only shows up as `usage.completion_tokens_details.reasoning_tokens`.
+  Muse Spark always reasons (`"none"` is a 400), so we send `reasoning_effort: "minimal"`.
+- **Latency, measured live:** reasoning (60 to 250 tokens) happens before the first word, and
+  the response headers only arrive when it's done. Then the whole sentence streams in about
+  100 ms. Time to first word on a Hindi sentence:
+
+  | Setup | Time to first word |
+  |-------|--------------------|
+  | New connection per request, `minimal`, any of 1.1 / 1.2 / 1.3 | 1.4 to 2.5 s |
+  | `reasoning_effort: "low"` | 2.3 s (255 reasoning tokens): slower |
+  | Reused connection, our interpreter prompt | 1.1 to 1.8 s |
+  | Reused connection, a terse "don't deliberate, answer immediately" prompt | 0.7 to 1.3 s |
+
+  So D-011's 0.8 s for this step doesn't hold. See D-014.
 
 ## D-007 — Text to speech: the browser's `speechSynthesis` first
 
@@ -129,9 +164,10 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Which language was spoken (table mode):** the transcriber is biased to both languages.
   If Phase 0 shows it reports the detected language, we use that. If not, Muse Spark is
   asked to translate "into whichever of the two languages this is not".
-  **Phase 0, from Meta's docs:** no event schema has a language field, so expect the Muse
-  Spark fallback. `smoke:transcribe` prints any undocumented field it sees, so the live run
-  will show if a language field exists anyway.
+  **Answered in Phase 0 (verified live):** the transcriber reports no language, in the docs
+  or on the wire. **Table mode uses the Muse Spark fallback:** the prompt gets both
+  languages and translates into whichever one the utterance is not. The script isn't a
+  reliable signal either, because Hinglish comes back in Devanagari (D-005).
 
 ## D-009 — Audio path: AudioWorklet → 16 kHz mono PCM16 → binary WebSocket frames
 
@@ -168,6 +204,7 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Why:** "Real time" is the claim. A number on screen backs it up in the demo video and
   tells us which step to fix.
 - **Trade-off:** A few timestamp fields in the protocol.
+- **Revised by D-014** after Phase 0 measured Muse Spark.
 
 ## D-012 — Tests: `bun test` for pure logic and a fake Meta server
 
@@ -188,3 +225,31 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   days is not the time to find out.
 - **Trade-off:** Slower typechecks than tsgo. Irrelevant at this size.
 - **Revisit when:** after the hackathon, once Next.js documents TypeScript 7 support.
+
+## D-014 — Latency budget revised: Muse Spark's first word takes about 1 s, not 0.8 s
+
+- **Decision:** The translation step's budget goes from 0.8 s to **1.2 s**, and the API does
+  three things to stay inside it:
+  1. **Keeps one warm HTTPS connection to `api.meta.ai`** (Bun's `fetch` reuses connections),
+     and warms it when a session starts, so no utterance pays for a TLS handshake.
+  2. **A terse system prompt** that says the task is simple and to answer immediately.
+     Measured 0.7 to 1.3 s to the first word, against 1.1 to 1.8 s for a chattier prompt.
+  3. **`reasoning_effort: "minimal"`**. `"low"` doubled the reasoning and the wait.
+
+  | Step | D-011 | Now | Measured in Phase 0 |
+  |------|-------|-----|---------------------|
+  | Speech ends → final transcript | ≤ 1.0 s | ≤ 1.0 s | 0.76 to 0.96 s (one outlier, see D-005) |
+  | Final transcript → first translated words | ≤ 0.8 s | ≤ 1.2 s | 0.7 to 1.3 s warm |
+  | Full translation → speech starts | ≤ 0.5 s | ≤ 0.5 s | Phase 3 |
+  | Network both ways | ≤ 0.2 s | ≤ 0.2 s | Phase 4 |
+  | **Total** | **≤ 2.5 s** | **≤ 2.9 s** | |
+
+- **Why:** Muse Spark always reasons before it answers, and the reasoning can't be turned off.
+  Translation must stay on Muse Spark: it's the "Use of Meta AI tooling" score, and the
+  context-aware translation in Phase 5 is the point of the product.
+- **Trade-off:** The 2.5 s median in `MVP.md` §7 is now at risk. **Yash to decide** whether
+  "done" becomes ≤ 3.0 s, or whether we keep 2.5 s and build the speculative step below.
+- **Revisit when:** Phase 2 measures real conversations. If the median is over budget,
+  translate the partial transcript once it has been stable for ~300 ms, and keep the result
+  if the final transcript matches (D-006's "revisit"). Phase 7 can also measure whether the
+  open-weights Muse Spark Open, self-hosted, answers faster.

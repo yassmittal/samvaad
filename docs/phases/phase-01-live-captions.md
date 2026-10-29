@@ -50,16 +50,71 @@ protocol table; `decisions.md` D-005, D-008, D-009 (as updated in Phase 0).
 - A Cloudflare quick tunnel for the web app and the API, so a phone gets HTTPS (the mic
   needs it). Write the commands into `README.md`.
 
+### Settled before building (29 Oct, from Phase 0's findings)
+- `session_ready { participantId, languageCodes }` answers `start_table_session`. Sending
+  `start_table_session` again (new languages) replaces the session and its stream.
+- `transcript_final.languageCode` is `null` in table mode: the transcriber doesn't say which
+  language was spoken (D-008). Phase 2's translation works it out.
+- The handshake sets `mode: ENDPOINTING`, `audioEncoding: PCM_16KHZ`,
+  `emitAudioProgress: false` and `languageBias` from the two languages' `englishName`s.
+- Frames that arrive before Meta answers the handshake are queued, then sent in order.
+- **Mic off sends `endStream`**, which completes the open utterance at once (D-005), then the
+  stream closes. A 1006 close after `endStream` is normal.
+- `speechEndedAtEpochMilliseconds` maps Meta's `speechEnd.audioProcessedMs` back to when that
+  audio reached the API, so the Phase 2 latency meter includes endpointing.
+- `apps/api` gets `META_TRANSCRIPTION_URL` (default `wss://api.meta.ai/v1/asr/realtime`) so
+  tests can point it at the fake server.
+- Phase 0's echo goes away. The home page keeps the API health check and links to table mode.
+- `next.config.ts` allows `*.trycloudflare.com` as a dev origin, so the tunnel works.
+
 ## Out of scope
 Translation (Phase 2), speech output (Phase 3), rooms (Phase 4).
 
 ## Definition of done
-- [ ] Captions appear while you speak, on an Android phone in Chrome, through the tunnel.
+- [x] Captions appear while you speak, on an Android phone in Chrome, through the tunnel.
   (iPhone: only if one can be borrowed; see the open questions in `roadmap.md`.)
-- [ ] A pause ends the utterance and starts a new bubble.
-- [ ] Hindi, English and Hinglish fixtures all transcribe sensibly when played to the mic.
-- [ ] Turning the mic off stops audio frames and closes the upstream socket (check the logs).
-- [ ] Typecheck, lint and tests pass.
+  *(Yash, 29 Oct: real Hindi speech transcribed correctly on the Android phone.)*
+- [x] A pause ends the utterance and starts a new bubble.
+- [x] Hindi, English and Hinglish fixtures all transcribe sensibly when played to the mic.
+  *(Checked in headless Chromium with the fixtures as a fake microphone, through the real
+  AudioWorklet, API and Meta. Not yet with real voices.)*
+- [x] Turning the mic off stops audio frames and closes the upstream socket (check the logs).
+- [x] Typecheck, lint and tests pass.
 
 ## Demo check
 Hold the phone, speak Hindi for 20 seconds with two pauses, and watch three caption bubbles fill in.
+
+## Build notes (29 Oct)
+
+- **Checked end to end without a phone:** headless Chromium with
+  `--use-file-for-fake-audio-capture` plays a WAV as the microphone. The worklet sent exactly
+  one frame per 80 ms, three utterances separated by 2 s pauses became three bubbles, and
+  partials streamed live. Captured in a throwaway script, not in the repo (it needs a local
+  Playwright Chromium).
+- **Phone test (Yash, 29 Oct):** real Hindi transcribes correctly; a pause starts a new
+  bubble; stop mid-sentence finalises it; it still works from across the room. The
+  synthetic Hindi fixture's endpointing problem (below) doesn't happen with a real voice.
+- **Hindi endpointing, again:** the Hindi fixture's turn didn't end on its own, even after
+  3.5 s of silence. It only completed when the mic closed (`endStream`). English and
+  Hinglish ended within about 1 s. Try a real Hindi voice on the phone before treating this
+  as a bug. If it holds, add our own "silence for N ms → `endStream` and reopen" in Phase 2
+  (D-005's mitigation).
+- **Mute moved to Phase 3**, where speaking the translation needs it. `useMicrophone()` has
+  open and close only.
+- **`bun run dev:phone`** (`scripts/dev-phone.ts`) starts both Cloudflare quick tunnels,
+  passes their URLs to the API (`ALLOWED_WEB_ORIGINS`) and the web app
+  (`NEXT_PUBLIC_API_BASE_URL`), and prints the URL to open on the phone.
+- **Reconnects, changed from "once":** the first phone test hit Cloudflare quick tunnels
+  dropping and re-registering 10 times in their first few minutes (Cloudflare error 1033
+  meanwhile), and a WebSocket handshake that hung forever ("Connecting…"). The socket client
+  now gives up on a handshake after 10 s and retries up to 5 times (1, 2, 4, 8, 16 s apart),
+  then shows **Try again**. Rejoining a room after a drop is still Phase 6.
+- **`dev:phone` and the tunnels:** it keeps reading cloudflared's log (if it stops, cloudflared
+  dies on its next log line), writes each tunnel's log to `$TMPDIR/samvaad-dev-phone/`, and
+  prints a line when a tunnel drops and when it's back.
+- **Tunnels use HTTP/2, not QUIC.** cloudflared's default QUIC (UDP) kept timing out on our
+  network ("failed to dial to edge with quic: timeout: no recent network activity"), dropping
+  both tunnels every 20 to 40 s. Page JavaScript failed to download mid-drop, so the page
+  never hydrated and sat on its server-rendered "Connecting…". An HTTP/2 (TCP) tunnel
+  carried the conversation socket for 90 s with no errors. `dev:phone` passes
+  `--protocol http2`.

@@ -1,8 +1,22 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { createEchoReply } from '../lib/create-echo-reply';
+import { createConversationConnection } from '../handlers/conversation-connection';
+import { handleAudioFrame } from '../handlers/handle-audio-frame';
+import { handleClientMessage } from '../handlers/handle-client-message';
+import { closeAllTranscriptions } from '../handlers/transcription-lifecycle';
 import { isAllowedOrigin } from '../lib/is-allowed-origin';
 
 const POLICY_VIOLATION_CLOSE_CODE = 1008;
+const textDecoder = new TextDecoder();
+
+type RawSocketData = Buffer | ArrayBuffer | Buffer[];
+
+function toUint8Array(data: RawSocketData): Uint8Array {
+  if (Array.isArray(data)) {
+    return Buffer.concat(data);
+  }
+  return data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+}
 
 export async function conversationSocketRoutes(server: FastifyInstance) {
   server.get('/v1/conversation', { websocket: true }, (socket, request) => {
@@ -12,12 +26,27 @@ export async function conversationSocketRoutes(server: FastifyInstance) {
       return;
     }
 
-    socket.on('message', (data, isBinary) => {
+    const connection = createConversationConnection({
+      participantId: randomUUID(),
+      env: server.env,
+      logger: request.log,
+      sendServerMessage(message) {
+        if (socket.readyState === socket.OPEN) {
+          socket.send(JSON.stringify(message));
+        }
+      },
+    });
+
+    socket.on('message', (data: RawSocketData, isBinary: boolean) => {
       if (isBinary) {
-        // Audio frames arrive from Phase 1 onwards.
-        return;
+        handleAudioFrame(connection, toUint8Array(data));
+      } else {
+        handleClientMessage(connection, textDecoder.decode(toUint8Array(data)));
       }
-      socket.send(createEchoReply(data.toString()));
+    });
+
+    socket.on('close', () => {
+      closeAllTranscriptions(connection);
     });
   });
 }
