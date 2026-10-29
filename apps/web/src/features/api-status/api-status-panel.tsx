@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { webEnv } from '@/config/env';
 import { type CheckResult, useApiStatus } from './use-api-status';
 
@@ -21,16 +20,6 @@ export function ApiStatusPanel() {
 
   return (
     <section className="flex w-full flex-col gap-4">
-      <Link
-        href="/table"
-        className="rounded-2xl bg-stone-900 px-5 py-4 text-white shadow-sm transition hover:bg-stone-700"
-      >
-        <span className="block text-lg font-medium">Table mode</span>
-        <span className="block text-sm text-stone-300">
-          One phone between two people. Each speaks their own language.
-        </span>
-      </Link>
-
       <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-white px-5 py-4">
         <span
           aria-hidden

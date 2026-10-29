@@ -262,3 +262,27 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   translate the partial transcript once it has been stable for ~300 ms, and keep the result
   if the final transcript matches (D-006's "revisit"). Phase 7 can also measure whether the
   open-weights Muse Spark Open, self-hosted, answers faster.
+
+## D-015 — Rooms: the speaker's language is known, so no detection
+
+- **Decision:** In a two-phone room each participant picks one language. `transcript_final`
+  carries it as `languageCode`, and Muse Spark gets a prompt that names the source and target
+  languages ("from Hindi into English") and answers with the translation only, without table
+  mode's target-language first line (D-008). Translations run once per distinct listener
+  language. The transcription stream is biased to the speaker's language **plus English**
+  (English alone for an English speaker), for code-switching (D-005).
+- **Why:** Table mode only asks Muse Spark to work out the language because one phone hears
+  both people. In a room each phone hears one person, so guessing would only add a way to
+  be wrong (and a few tokens of reasoning before the first word, D-014).
+  **Why plus English:** it is D-005's plan for code-switching, and `["Hindi", "English"]` is
+  the bias table mode already uses, checked with real Hindi on the phone. A single-language
+  bias would be a new, unchecked setting. **Not settled by measurement (30 Oct, Phase 4
+  build, synthetic Hinglish fixture, one run each):** `["Hindi"]` and `["Hindi", "English"]`
+  both wrote "blue pottery" as "ब्लू पाचरी" (Muse Spark then said "blue pachari"), where
+  Phase 0 got "ब्लू पॉटरी" with `["Hindi", "English"]`. That's run-to-run variance, not the
+  bias. Product words are Phase 5's job (keywords and the glossary).
+- **Trade-off:** A speaker of another language who uses no English gets a two-language bias
+  they don't need; Phase 0 found bias order doesn't matter and pure Hindi still came back in
+  Devanagari with it.
+- **Revisit when:** real voices in a room show the extra English bias turning
+  non-English speech into Latin script.

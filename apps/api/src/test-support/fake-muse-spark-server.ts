@@ -27,6 +27,8 @@ export function startFakeMuseSparkServer({
   createScriptedTranslation,
 }: FakeMuseSparkServerOptions) {
   const receivedRequestBodies: Record<string, unknown>[] = [];
+  /** Requests whose client hung up before the stream ended, by request index. */
+  const abortedRequestIndexes: number[] = [];
   const textEncoder = new TextEncoder();
 
   const server = Bun.serve({
@@ -37,7 +39,9 @@ export function startFakeMuseSparkServer({
       }
       const requestBody = (await request.json()) as Record<string, unknown>;
       receivedRequestBodies.push(requestBody);
-      const script = createScriptedTranslation(requestBody, receivedRequestBodies.length - 1);
+      const requestIndex = receivedRequestBodies.length - 1;
+      const script = createScriptedTranslation(requestBody, requestIndex);
+      request.signal.addEventListener('abort', () => abortedRequestIndexes.push(requestIndex));
 
       if (script.failureStatus !== undefined) {
         return new Response('{"error":"scripted failure"}', { status: script.failureStatus });
@@ -67,6 +71,7 @@ export function startFakeMuseSparkServer({
   return {
     chatCompletionsUrl: `http://127.0.0.1:${server.port}/v1/chat/completions`,
     receivedRequestBodies,
+    abortedRequestIndexes,
     stop: () => server.stop(true),
   };
 }

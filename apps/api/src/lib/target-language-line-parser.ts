@@ -4,7 +4,7 @@ import type { LanguageCode } from '@samvaad/shared';
 const MAXIMUM_TARGET_LANGUAGE_LINE_LENGTH = 16;
 
 type TargetLanguageLineParserOptions = {
-  languageCodes: [LanguageCode, LanguageCode];
+  languageCodes: readonly [LanguageCode, LanguageCode];
   /** Used when the model leaves out the code line or names a language outside the pair. */
   fallbackLanguageCode: LanguageCode;
 };

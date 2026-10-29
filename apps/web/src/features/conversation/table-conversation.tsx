@@ -66,6 +66,8 @@ export function TableConversation() {
       <section className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
         <CaptionList
           captions={captions}
+          listenerLanguageCode={null}
+          emptyStateText="Tap the microphone and speak. What you say appears here with its translation under it, and the phone says the translation aloud."
           hasVoiceForLanguage={hasVoiceForLanguage}
           onRepeat={repeatTranslation}
         />

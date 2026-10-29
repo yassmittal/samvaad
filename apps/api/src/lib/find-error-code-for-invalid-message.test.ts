@@ -17,6 +17,12 @@ describe('findErrorCodeForInvalidMessage', () => {
     );
   });
 
+  test('an unsupported room language is UNSUPPORTED_LANGUAGE too', () => {
+    expect(
+      findErrorCodeFor({ type: 'create_room', participantName: 'Yash', languageCode: 'xx' }),
+    ).toBe('UNSUPPORTED_LANGUAGE');
+  });
+
   test('the same language twice is INVALID_MESSAGE', () => {
     expect(findErrorCodeFor({ type: 'start_table_session', languageCodes: ['hi', 'hi'] })).toBe(
       'INVALID_MESSAGE',

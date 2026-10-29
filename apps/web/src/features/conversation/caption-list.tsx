@@ -36,58 +36,153 @@ function RepeatButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function CaptionBubble({
+function TranslationFooter({
   caption,
+  translation,
   hasVoiceForLanguage,
   onRepeat,
-}: { caption: Caption } & SpeechControls) {
-  if (!caption.isFinal) {
-    return (
-      <li className="rounded-2xl border border-dashed border-stone-300 px-4 py-3 text-lg leading-relaxed text-stone-400">
-        {caption.text}
-      </li>
-    );
+}: { caption: Caption; translation: CaptionTranslation } & SpeechControls) {
+  const translationDelay = formatTranslationDelay(translation);
+  if (!translationDelay) {
+    return null;
   }
+  const canRepeat = translation.isComplete && hasVoiceForLanguage(translation.targetLanguageCode);
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-xs text-stone-400">
+        {SUPPORTED_LANGUAGE_BY_CODE[translation.targetLanguageCode].nativeName} · {translationDelay}
+      </p>
+      {canRepeat && <RepeatButton onClick={() => onRepeat(caption.utteranceId)} />}
+    </div>
+  );
+}
 
+function TranslationText({ translation }: { translation: CaptionTranslation }) {
+  return (
+    <p className="text-lg leading-relaxed text-stone-900">
+      <span className="sr-only">
+        {SUPPORTED_LANGUAGE_BY_CODE[translation.targetLanguageCode].englishName}:{' '}
+      </span>
+      {translation.text}
+    </p>
+  );
+}
+
+function TranslationFailure() {
+  return <p className="text-sm text-rose-600">This sentence couldn’t be translated.</p>;
+}
+
+/** Before the first words arrive. A stream that breaks later keeps its words and says so. */
+function TranslationPending({ caption }: { caption: Caption }) {
+  if (caption.hasTranslationFailed) {
+    return <TranslationFailure />;
+  }
+  return <p className="animate-pulse text-lg text-stone-300">Translating…</p>;
+}
+
+/** Table mode: both people read one phone, so every bubble has the transcript and its translation. */
+function TableCaptionBubble({ caption, ...speechControls }: { caption: Caption } & SpeechControls) {
   const { translation } = caption;
-  const translationDelay = translation && formatTranslationDelay(translation);
-  const canRepeat =
-    translation?.isComplete === true && hasVoiceForLanguage(translation.targetLanguageCode);
   return (
     <li className="flex flex-col gap-1.5 rounded-2xl bg-white px-4 py-3 shadow-sm">
       <p className="leading-relaxed text-stone-500">{caption.text}</p>
-      {translation && (
-        <p className="text-lg leading-relaxed text-stone-900">
-          <span className="sr-only">
-            {SUPPORTED_LANGUAGE_BY_CODE[translation.targetLanguageCode].englishName}:{' '}
-          </span>
-          {translation.text}
-        </p>
-      )}
-      {!translation && !caption.hasTranslationFailed && (
-        <p className="animate-pulse text-lg text-stone-300">Translating…</p>
-      )}
-      {caption.hasTranslationFailed && (
-        <p className="text-sm text-rose-600">This sentence couldn’t be translated.</p>
-      )}
-      {translation && translationDelay && (
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-stone-400">
-            {SUPPORTED_LANGUAGE_BY_CODE[translation.targetLanguageCode].nativeName} ·{' '}
-            {translationDelay}
-          </p>
-          {canRepeat && <RepeatButton onClick={() => onRepeat(caption.utteranceId)} />}
-        </div>
+      {translation ? (
+        <>
+          <TranslationText translation={translation} />
+          {caption.hasTranslationFailed && <TranslationFailure />}
+          <TranslationFooter caption={caption} translation={translation} {...speechControls} />
+        </>
+      ) : (
+        <TranslationPending caption={caption} />
       )}
     </li>
   );
 }
 
+/** A room, my own utterance: the other phone gets the translation, I only see what I said. */
+function OwnCaptionBubble({ caption }: { caption: Caption }) {
+  return (
+    <li className="ml-10 self-end rounded-2xl bg-stone-900 px-4 py-3 text-lg leading-relaxed text-white shadow-sm">
+      {caption.text}
+    </li>
+  );
+}
+
+/** A room, someone else's utterance: the translation big, their original small. */
+function TheirCaptionBubble({
+  caption,
+  listenerLanguageCode,
+  ...speechControls
+}: { caption: Caption; listenerLanguageCode: LanguageCode } & SpeechControls) {
+  const { translation } = caption;
+  // Spoken in my language: no translation is coming, the transcript is it.
+  if (caption.languageCode === listenerLanguageCode) {
+    return (
+      <li className="mr-10 rounded-2xl bg-white px-4 py-3 text-lg leading-relaxed text-stone-900 shadow-sm">
+        {caption.text}
+      </li>
+    );
+  }
+  return (
+    <li className="mr-10 flex flex-col gap-1.5 rounded-2xl bg-white px-4 py-3 shadow-sm">
+      {translation ? (
+        <TranslationText translation={translation} />
+      ) : (
+        <TranslationPending caption={caption} />
+      )}
+      {translation && caption.hasTranslationFailed && <TranslationFailure />}
+      <p className="text-sm leading-relaxed text-stone-500">{caption.text}</p>
+      {translation && (
+        <TranslationFooter caption={caption} translation={translation} {...speechControls} />
+      )}
+    </li>
+  );
+}
+
+function CaptionBubble({
+  caption,
+  listenerLanguageCode,
+  ...speechControls
+}: { caption: Caption; listenerLanguageCode: LanguageCode | null } & SpeechControls) {
+  const isRoom = listenerLanguageCode !== null;
+  if (!caption.isFinal) {
+    return (
+      <li
+        className={`rounded-2xl border border-dashed border-stone-300 px-4 py-3 text-lg leading-relaxed text-stone-400 ${isRoom ? 'ml-10 self-end' : ''}`}
+      >
+        {caption.text}
+      </li>
+    );
+  }
+  if (!isRoom) {
+    return <TableCaptionBubble caption={caption} {...speechControls} />;
+  }
+  if (caption.isOwnUtterance) {
+    return <OwnCaptionBubble caption={caption} />;
+  }
+  return (
+    <TheirCaptionBubble
+      caption={caption}
+      listenerLanguageCode={listenerLanguageCode}
+      {...speechControls}
+    />
+  );
+}
+
+type CaptionListProps = {
+  captions: Caption[];
+  /** This phone's language in a room; `null` in table mode, where the phone hears both. */
+  listenerLanguageCode: LanguageCode | null;
+  emptyStateText: string;
+} & SpeechControls;
+
 export function CaptionList({
   captions,
+  listenerLanguageCode,
+  emptyStateText,
   hasVoiceForLanguage,
   onRepeat,
-}: { captions: Caption[] } & SpeechControls) {
+}: CaptionListProps) {
   const listEndRef = useRef<HTMLDivElement>(null);
   const latestCaption = captions.at(-1);
   const latestCaptionContent = `${latestCaption?.text}${latestCaption?.translation?.text}`;
@@ -99,12 +194,7 @@ export function CaptionList({
   }, [captions.length, latestCaptionContent]);
 
   if (captions.length === 0) {
-    return (
-      <p className="m-auto max-w-xs text-center text-stone-400">
-        Tap the microphone and speak. What you say appears here with its translation under it, and
-        the phone says the translation aloud.
-      </p>
-    );
+    return <p className="m-auto max-w-xs text-center text-stone-400">{emptyStateText}</p>;
   }
 
   return (
@@ -113,6 +203,7 @@ export function CaptionList({
         <CaptionBubble
           key={caption.utteranceId}
           caption={caption}
+          listenerLanguageCode={listenerLanguageCode}
           hasVoiceForLanguage={hasVoiceForLanguage}
           onRepeat={onRepeat}
         />

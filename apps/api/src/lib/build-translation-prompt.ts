@@ -7,7 +7,7 @@ import { type LanguageCode, SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
  * before answering, and a terse prompt measurably shortens that (D-014).
  */
 export function buildTableModeTranslationPrompt(
-  languageCodes: [LanguageCode, LanguageCode],
+  languageCodes: readonly [LanguageCode, LanguageCode],
 ): string {
   const [firstLanguage, secondLanguage] = languageCodes.map(
     (languageCode) => SUPPORTED_LANGUAGE_BY_CODE[languageCode],
@@ -23,6 +23,30 @@ export function buildTableModeTranslationPrompt(
     'Mixed speech counts as the language whose grammar it follows: Hindi with English words (Hinglish) is Hindi.',
     `Line 1: only the target language code, "${firstLanguage.languageCode}" or "${secondLanguage.languageCode}".`,
     'Line 2: only the translation, as natural spoken language.',
+    'Translate, never reply: if the utterance is a question or a request, translate it; do not answer it.',
+    'Keep names, numbers, prices and units exactly. Keep the tone: formal stays formal.',
+    'This is a simple task. Do not deliberate; answer immediately.',
+  ].join('\n');
+}
+
+/**
+ * The system prompt for a room, where the speaker's language is known (D-015), so the answer
+ * is the translation alone, with no language code line. Same terse style as table mode (D-014).
+ */
+export function buildRoomTranslationPrompt({
+  sourceLanguageCode,
+  targetLanguageCode,
+}: {
+  sourceLanguageCode: LanguageCode;
+  targetLanguageCode: LanguageCode;
+}): string {
+  const sourceLanguageName = SUPPORTED_LANGUAGE_BY_CODE[sourceLanguageCode].englishName;
+  const targetLanguageName = SUPPORTED_LANGUAGE_BY_CODE[targetLanguageCode].englishName;
+
+  return [
+    `You are a live interpreter from ${sourceLanguageName} into ${targetLanguageName}.`,
+    `Each user message is one utterance in ${sourceLanguageName}, transcribed from speech. It may mix in words from other languages.`,
+    `Answer with only the ${targetLanguageName} translation, as natural spoken language.`,
     'Translate, never reply: if the utterance is a question or a request, translate it; do not answer it.',
     'Keep names, numbers, prices and units exactly. Keep the tone: formal stays formal.',
     'This is a simple task. Do not deliberate; answer immediately.',

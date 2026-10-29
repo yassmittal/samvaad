@@ -1,143 +1,83 @@
 import type { LanguageCode, ServerMessage } from '@samvaad/shared';
-import { buildTableModeTranslationPrompt } from '../lib/build-translation-prompt';
+import { createOrderedDelivery, type OrderedDelivery } from '../lib/create-ordered-delivery';
 import {
-  createTargetLanguageLineParser,
-  type ParsedTranslationDelta,
-} from '../lib/target-language-line-parser';
-import type { ConversationConnection } from './conversation-connection';
+  findCandidateTargetLanguageCodes,
+  planUtteranceTranslations,
+} from '../lib/plan-utterance-translations';
+import type {
+  ConversationConnection,
+  ConversationRoom,
+  RoomMembership,
+} from './conversation-connection';
+import {
+  produceTranslationMessages,
+  type UtteranceToTranslate,
+} from './produce-translation-messages';
+import { findListeners } from './room-messages';
 
-type UtteranceToTranslate = {
-  utteranceId: string;
-  utteranceText: string;
-  speechEndedAtEpochMilliseconds: number;
-  transcriptFinalAtEpochMilliseconds: number;
-};
-
-/**
- * Translates one finished utterance into the other language of the table (D-006, D-008).
- * Starts at once; `translationDelivery` keeps the messages in utterance order.
- */
-export function startUtteranceTranslation(
-  connection: ConversationConnection,
-  utterance: UtteranceToTranslate,
+/** Sends one translation message to everyone listening in its language, as it is delivered. */
+function sendToListeners(
+  room: ConversationRoom,
+  candidateTargetLanguageCodes: readonly LanguageCode[],
+  message: ServerMessage,
 ): void {
-  const languageCodes = connection.tableSessionLanguageCodes;
-  if (languageCodes === null) {
-    return;
+  for (const listener of findListeners(room, candidateTargetLanguageCodes)) {
+    listener.sendServerMessage(message);
+    if (message.type === 'translation_complete') {
+      listener.playbackTimings.remember(message.utteranceId, message.timings);
+    }
   }
-  const abortController = new AbortController();
-  connection.translationAbortControllers.add(abortController);
-
-  void connection.translationDelivery
-    .run(() =>
-      produceTranslationMessages({
-        connection,
-        utterance,
-        languageCodes,
-        signal: abortController.signal,
-      }),
-    )
-    .finally(() => connection.translationAbortControllers.delete(abortController));
 }
 
-async function* produceTranslationMessages({
-  connection,
-  utterance,
-  languageCodes,
-  signal,
-}: {
-  connection: ConversationConnection;
-  utterance: UtteranceToTranslate;
-  languageCodes: [LanguageCode, LanguageCode];
-  signal: AbortSignal;
-}): AsyncGenerator<ServerMessage> {
-  const { utteranceId } = utterance;
-  const targetLanguageLineParser = createTargetLanguageLineParser({
-    languageCodes,
-    fallbackLanguageCode: languageCodes[1],
-  });
-  let targetLanguageCode: LanguageCode | null = null;
-  let translationText = '';
-  let firstTranslationDeltaAtEpochMilliseconds: number | null = null;
-
-  function* toDeltaMessages(parsedDelta: ParsedTranslationDelta | null): Generator<ServerMessage> {
-    if (parsedDelta === null) {
-      return;
-    }
-    targetLanguageCode = parsedDelta.targetLanguageCode;
-    if (parsedDelta.textDelta.length === 0) {
-      return;
-    }
-    firstTranslationDeltaAtEpochMilliseconds ??= Date.now();
-    translationText += parsedDelta.textDelta;
-    yield {
-      type: 'translation_delta',
-      utteranceId,
-      targetLanguageCode: parsedDelta.targetLanguageCode,
-      textDelta: parsedDelta.textDelta,
-    };
+/** One per speaker and target: a later utterance never overtakes an earlier, slower one. */
+function findOrCreateTranslationDelivery(
+  room: ConversationRoom,
+  speakerParticipantId: string,
+  candidateTargetLanguageCodes: readonly LanguageCode[],
+): OrderedDelivery<ServerMessage> {
+  const deliveryKey = `${speakerParticipantId} into ${candidateTargetLanguageCodes.join(' or ')}`;
+  const existingDelivery = room.translationDeliveries.get(deliveryKey);
+  if (existingDelivery) {
+    return existingDelivery;
   }
-
-  try {
-    const textDeltas = connection.translationClient.streamTranslation({
-      systemPrompt: buildTableModeTranslationPrompt(languageCodes),
-      utteranceText: utterance.utteranceText,
-      signal,
-    });
-    for await (const textDelta of textDeltas) {
-      yield* toDeltaMessages(targetLanguageLineParser.push(textDelta));
-    }
-    yield* toDeltaMessages(targetLanguageLineParser.finish());
-  } catch (error) {
-    if (signal.aborted) {
-      return;
-    }
-    connection.logger.warn({ err: error, utteranceId }, 'translation failed');
-    yield {
-      type: 'error',
-      code: 'UPSTREAM_UNAVAILABLE',
-      message: 'This sentence could not be translated.',
-      utteranceId,
-    };
-    return;
-  }
-
-  if (targetLanguageLineParser.hasUsedFallback()) {
-    connection.logger.warn({ utteranceId }, 'translation had no target language line');
-  }
-  if (targetLanguageCode === null || firstTranslationDeltaAtEpochMilliseconds === null) {
-    yield {
-      type: 'error',
-      code: 'UPSTREAM_UNAVAILABLE',
-      message: 'The translation came back empty.',
-      utteranceId,
-    };
-    return;
-  }
-
-  const translationCompleteAtEpochMilliseconds = Date.now();
-  connection.logger.info(
-    {
-      utteranceId,
-      speechEndToTranslationCompleteMilliseconds:
-        translationCompleteAtEpochMilliseconds - utterance.speechEndedAtEpochMilliseconds,
-      transcriptFinalToFirstTranslationDeltaMilliseconds:
-        firstTranslationDeltaAtEpochMilliseconds - utterance.transcriptFinalAtEpochMilliseconds,
-    },
-    'translation complete',
+  const delivery = createOrderedDelivery<ServerMessage>((message) =>
+    sendToListeners(room, candidateTargetLanguageCodes, message),
   );
-  const timings = {
-    speechEndedAtEpochMilliseconds: utterance.speechEndedAtEpochMilliseconds,
-    transcriptFinalAtEpochMilliseconds: utterance.transcriptFinalAtEpochMilliseconds,
-    firstTranslationDeltaAtEpochMilliseconds,
-    translationCompleteAtEpochMilliseconds,
-  };
-  connection.playbackTimings.remember(utteranceId, timings);
-  yield {
-    type: 'translation_complete',
-    utteranceId,
-    targetLanguageCode,
-    text: translationText.trim(),
-    timings,
-  };
+  room.translationDeliveries.set(deliveryKey, delivery);
+  return delivery;
+}
+
+/**
+ * Translates one finished utterance once per listener language in the room (D-006, D-015),
+ * or into the table's other language (D-008). Each starts at once; delivery keeps the order.
+ */
+export function startUtteranceTranslations(
+  speaker: ConversationConnection,
+  { room, languageCodes }: RoomMembership,
+  utterance: UtteranceToTranslate,
+): void {
+  const plans = planUtteranceTranslations({
+    speakerLanguageCodes: languageCodes,
+    roomLanguageCodes: [...room.participants.values()].flatMap((participant) =>
+      participant.membership ? [participant.membership.languageCodes] : [],
+    ),
+  });
+
+  for (const plan of plans) {
+    const candidateTargetLanguageCodes = findCandidateTargetLanguageCodes(plan);
+    const translationJob = { candidateTargetLanguageCodes, abortController: new AbortController() };
+    room.translationJobs.add(translationJob);
+
+    void findOrCreateTranslationDelivery(room, speaker.participantId, candidateTargetLanguageCodes)
+      .run(() =>
+        produceTranslationMessages({
+          translationClient: speaker.translationClient,
+          logger: speaker.logger,
+          utterance,
+          plan,
+          signal: translationJob.abortController.signal,
+        }),
+      )
+      .finally(() => room.translationJobs.delete(translationJob));
+  }
 }

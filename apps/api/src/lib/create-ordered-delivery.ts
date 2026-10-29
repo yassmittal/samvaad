@@ -35,3 +35,5 @@ export function createOrderedDelivery<Item>(deliver: (item: Item) => void) {
     },
   };
 }
+
+export type OrderedDelivery<Item> = ReturnType<typeof createOrderedDelivery<Item>>;

@@ -1,27 +1,27 @@
 import { randomUUID } from 'node:crypto';
-import { SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
+import { findLanguageBias } from '../lib/find-language-bias';
 import { createUtteranceTracker } from '../lib/utterance-tracker';
 import {
   createMetaTranscriptionStream,
   type MetaTranscriptionStream,
 } from '../services/meta-transcription-stream';
 import type { ConversationConnection } from './conversation-connection';
-import { startUtteranceTranslation } from './translate-utterance';
+import { broadcastRoomState, sendToRoom } from './room-messages';
+import { startUtteranceTranslations } from './translate-utterance';
 
 // Meta caps a session at 60 minutes (D-005). Hand over to a fresh stream well before that.
 export const TRANSCRIPTION_STREAM_ROTATION_MILLISECONDS = 55 * 60 * 1000;
 
 function openTranscriptionStream(connection: ConversationConnection): MetaTranscriptionStream {
-  const languageCodes = connection.tableSessionLanguageCodes ?? [];
   // One tracker per stream: after a rotation, the old stream still finishes its own utterance.
   const utteranceTracker = createUtteranceTracker({ createUtteranceId: randomUUID });
 
   const stream = createMetaTranscriptionStream({
     transcriptionUrl: connection.env.META_TRANSCRIPTION_URL,
     metaApiKey: connection.env.META_API_KEY,
-    languageBias: languageCodes.map(
-      (languageCode) => SUPPORTED_LANGUAGE_BY_CODE[languageCode].englishName,
-    ),
+    languageBias: connection.membership
+      ? findLanguageBias(connection.membership.languageCodes)
+      : [],
     logger: connection.logger,
     callbacks: {
       onSpeechStarted(turnId) {
@@ -40,22 +40,23 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
       },
       onFinalTranscript(turnId, text) {
         const utterance = utteranceTracker.finishUtterance(turnId);
-        if (text.trim().length === 0) {
+        const { membership } = connection;
+        if (text.trim().length === 0 || membership === null) {
           return;
         }
         const transcriptFinalAtEpochMilliseconds = Date.now();
         const speechEndedAtEpochMilliseconds =
           utterance.speechEndedAtEpochMilliseconds ?? transcriptFinalAtEpochMilliseconds;
-        connection.sendServerMessage({
+        sendToRoom(membership.room, {
           type: 'transcript_final',
           utteranceId: utterance.utteranceId,
           speakerParticipantId: connection.participantId,
-          // Table mode: the transcriber doesn't say which of the two languages it heard (D-008).
-          languageCode: null,
+          // A table's transcriber doesn't say which of its two languages it heard (D-008).
+          languageCode: membership.languageCodes.length === 1 ? membership.languageCodes[0] : null,
           text,
           speechEndedAtEpochMilliseconds,
         });
-        startUtteranceTranslation(connection, {
+        startUtteranceTranslations(connection, membership, {
           utteranceId: utterance.utteranceId,
           utteranceText: text,
           speechEndedAtEpochMilliseconds,
@@ -66,6 +67,9 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
         if (connection.activeTranscription?.stream === stream) {
           clearTimeout(connection.activeTranscription.rotationTimeout);
           connection.activeTranscription = null;
+          if (connection.membership) {
+            broadcastRoomState(connection.membership.room);
+          }
         }
         connection.sendServerMessage({
           type: 'error',
@@ -111,7 +115,10 @@ export function endTranscription(connection: ConversationConnection): void {
   connection.activeTranscription = null;
 }
 
-/** The browser is gone: nobody is left to receive results, so stop everything now. */
+/**
+ * The participant is leaving: stop listening to them now, without waiting for the utterance
+ * in progress. Their translations already running belong to the room and carry on.
+ */
 export function closeAllTranscriptions(connection: ConversationConnection): void {
   if (connection.activeTranscription) {
     clearTimeout(connection.activeTranscription.rotationTimeout);
@@ -121,8 +128,4 @@ export function closeAllTranscriptions(connection: ConversationConnection): void
     stream.close();
   }
   connection.openTranscriptionStreams.clear();
-  for (const abortController of connection.translationAbortControllers) {
-    abortController.abort();
-  }
-  connection.translationAbortControllers.clear();
 }

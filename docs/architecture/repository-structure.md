@@ -27,7 +27,8 @@ hackathon-project/
 │       ├── audio/
 │       │   └── audio-format.ts     SAMPLE_RATE_HERTZ, FRAME_DURATION_MILLISECONDS, …
 │       └── domain/
-│           └── error-code.ts       the ErrorCode union
+│           ├── error-code.ts       the ErrorCode union
+│           └── room-code.ts        room code alphabet, length and schema (Phase 4)
 ├── apps/
 │   ├── api/src/
 │   │   ├── index.ts                starts the server
@@ -39,7 +40,8 @@ hackathon-project/
 │   │   │   ├── meta-transcription-stream.ts   the upstream ASR WebSocket
 │   │   │   └── meta-translation-client.ts     Muse Spark streaming calls
 │   │   ├── rooms/
-│   │   │   └── room-registry.ts    in-memory rooms (D-004)
+│   │   │   ├── room.ts             a room's shape; table rooms (D-008)
+│   │   │   └── room-registry.ts    in-memory rooms by code (D-004)
 │   │   ├── lib/                    pure functions: prompts, timings, room codes
 │   │   └── test-support/           fake Meta ASR server, fake Muse Spark endpoint
 │   └── web/
@@ -49,7 +51,8 @@ hackathon-project/
 │           ├── app/                thin route files
 │           │   ├── page.tsx        home: table mode or create/join a room
 │           │   ├── table/page.tsx  table mode
-│           │   └── room/[roomCode]/page.tsx
+│           │   ├── room/new/page.tsx         create a room
+│           │   └── room/[roomCode]/page.tsx  join a room
 │           ├── features/
 │           │   ├── microphone/     capture, resample, PCM16 encode, mute
 │           │   ├── conversation/   caption list, latency meter

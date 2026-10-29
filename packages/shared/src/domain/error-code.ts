@@ -5,6 +5,8 @@ export const errorCodeSchema = z.enum([
   'UNSUPPORTED_LANGUAGE',
   'MICROPHONE_NOT_OPEN',
   'UPSTREAM_UNAVAILABLE',
+  'ROOM_NOT_FOUND',
+  'ROOM_FULL',
   'INTERNAL_ERROR',
 ]);
 

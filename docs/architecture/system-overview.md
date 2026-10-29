@@ -32,7 +32,13 @@
 ```
 
 Table mode (Phases 1 to 3) is the same picture with one phone and one participant who
-has two languages.
+has two languages. From Phase 4 it runs through the same room code: a table room has one
+participant, no room code, and isn't in the registry.
+
+**Routing rule (Phase 4):** a translation into language X goes to every participant who
+listens in X. A room participant listens in their one language; the table participant in
+both of theirs. Translations run once per distinct listener language other than the
+speaker's, and each speaker's translations into one language arrive in utterance order.
 
 ## One utterance, step by step
 
@@ -73,6 +79,7 @@ they need them.
 | `microphone_state { isOpen }` | 1 | Mic opened or closed (also sent when muted during playback) |
 | `create_room { participantName, languageCode }` | 4 | Two-phone mode |
 | `join_room { roomCode, participantName, languageCode }` | 4 | Two-phone mode |
+| `leave_room` | 4 | Leave the room; the socket stays open |
 | `playback_started { utteranceId }` | 2 | For the latency meter |
 | `update_conversation_context { setting, glossaryTerms }` | 5 | Context for translation |
 | `end_conversation` | 5 | Ask for the recap |
@@ -83,10 +90,12 @@ they need them.
 |---------|-------|---------|
 | `session_ready { participantId, languageCodes }` | 1 | Table session started |
 | `transcript_partial { utteranceId, text }` | 1 | Live caption, speaker only |
-| `transcript_final { utteranceId, speakerParticipantId, languageCode, text, speechEndedAtEpochMilliseconds }` | 1 | Finished sentence, everyone. `languageCode` is `null` in table mode (D-008) |
+| `transcript_final { utteranceId, speakerParticipantId, languageCode, text, speechEndedAtEpochMilliseconds }` | 1 | Finished sentence, everyone. `languageCode` is `null` in table mode (D-008), the speaker's language in a room |
 | `translation_delta { utteranceId, targetLanguageCode, textDelta }` | 2 | Translation arriving |
 | `translation_complete { utteranceId, targetLanguageCode, text, timings }` | 2 | Speak this now |
-| `room_state { roomCode, participants }` | 4 | Who is here |
+| `room_joined { roomCode, participantId }` | 4 | You created or joined this room, as this participant |
+| `room_state { roomCode, participants }` | 4 | Who is here, their language and whether their mic is on. Sent to everyone on every change |
+| `participant_left { participantId, participantName }` | 4 | Someone left (or their socket closed) |
 | `conversation_recap { languageCode, text }` | 5 | End-of-conversation recap |
 | `error { code, message, utteranceId? }` | 1 | Something went wrong, with a code the UI can explain. `utteranceId` when it concerns one utterance (Phase 2) |
 

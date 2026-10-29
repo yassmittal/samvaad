@@ -161,4 +161,88 @@ describe('reduceConversation', () => {
       expect(state.latestError).toBeNull();
     });
   });
+
+  describe('in a room', () => {
+    const ASHA = {
+      participantId: 'participant-asha',
+      participantName: 'Asha',
+      languageCode: 'hi',
+      isMicrophoneOpen: false,
+    } as const;
+    const BEN = {
+      participantId: 'participant-ben',
+      participantName: 'Ben',
+      languageCode: 'en',
+      isMicrophoneOpen: true,
+    } as const;
+
+    function createStateInRoomAsAsha(): ConversationState {
+      let state = reduceConversation(INITIAL_CONVERSATION_STATE, {
+        type: 'room_joined',
+        roomCode: 'K7MQ2X',
+        participantId: ASHA.participantId,
+      });
+      state = reduceConversation(state, {
+        type: 'room_state',
+        roomCode: 'K7MQ2X',
+        participants: [ASHA, BEN],
+      });
+      return state;
+    }
+
+    test('room_joined and room_state record who this phone is and who is here', () => {
+      const state = createStateInRoomAsAsha();
+
+      expect(state.participantId).toBe(ASHA.participantId);
+      expect(state.room).toEqual({ roomCode: 'K7MQ2X', participants: [ASHA, BEN] });
+    });
+
+    test('marks which finished utterances are this phone’s own, with their language', () => {
+      let state = createStateInRoomAsAsha();
+      for (const [utteranceId, speaker] of [
+        ['utterance-1', ASHA],
+        ['utterance-2', BEN],
+      ] as const) {
+        state = reduceConversation(state, {
+          type: 'transcript_final',
+          utteranceId,
+          speakerParticipantId: speaker.participantId,
+          languageCode: speaker.languageCode,
+          text: 'text',
+          speechEndedAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+        });
+      }
+
+      expect(
+        state.captions.map(({ isOwnUtterance, languageCode }) => ({
+          isOwnUtterance,
+          languageCode,
+        })),
+      ).toEqual([
+        { isOwnUtterance: true, languageCode: 'hi' },
+        { isOwnUtterance: false, languageCode: 'en' },
+      ]);
+    });
+
+    test('remembers who left until someone joins again', () => {
+      let state = reduceConversation(createStateInRoomAsAsha(), {
+        type: 'participant_left',
+        participantId: BEN.participantId,
+        participantName: 'Ben',
+      });
+      state = reduceConversation(state, {
+        type: 'room_state',
+        roomCode: 'K7MQ2X',
+        participants: [ASHA],
+      });
+      expect(state.departedParticipantName).toBe('Ben');
+
+      state = reduceConversation(state, {
+        type: 'room_state',
+        roomCode: 'K7MQ2X',
+        participants: [ASHA, BEN],
+      });
+      expect(state.departedParticipantName).toBeNull();
+    });
+  });
 });

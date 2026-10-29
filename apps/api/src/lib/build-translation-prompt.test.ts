@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { buildTableModeTranslationPrompt } from './build-translation-prompt';
+import {
+  buildRoomTranslationPrompt,
+  buildTableModeTranslationPrompt,
+} from './build-translation-prompt';
 
 describe('buildTableModeTranslationPrompt', () => {
   const prompt = buildTableModeTranslationPrompt(['hi', 'en']);
@@ -17,5 +20,20 @@ describe('buildTableModeTranslationPrompt', () => {
   test('keeps names, numbers and tone, and treats Hinglish as Hindi', () => {
     expect(prompt).toContain('Keep names, numbers, prices and units exactly');
     expect(prompt).toContain('Hinglish) is Hindi');
+  });
+});
+
+describe('buildRoomTranslationPrompt', () => {
+  const prompt = buildRoomTranslationPrompt({ sourceLanguageCode: 'hi', targetLanguageCode: 'en' });
+
+  test('names the direction and asks for the translation alone, with no code line', () => {
+    expect(prompt).toContain('from Hindi into English');
+    expect(prompt).toContain('only the English translation');
+    expect(prompt).not.toContain('Line 1');
+  });
+
+  test('says to translate, never to answer, and keeps names and numbers', () => {
+    expect(prompt).toContain('do not answer it');
+    expect(prompt).toContain('Keep names, numbers, prices and units exactly');
   });
 });

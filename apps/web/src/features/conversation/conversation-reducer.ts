@@ -1,4 +1,4 @@
-import type { ErrorCode, LanguageCode, ServerMessage } from '@samvaad/shared';
+import type { ErrorCode, LanguageCode, RoomParticipant, ServerMessage } from '@samvaad/shared';
 
 export type CaptionTranslation = {
   targetLanguageCode: LanguageCode;
@@ -16,12 +16,28 @@ export type Caption = {
   text: string;
   /** A partial caption is still being spoken and will be replaced as it grows. */
   isFinal: boolean;
+  /**
+   * Spoken into this phone. Decided on arrival, so it stays right if a reconnect gives this
+   * phone a new participant id. Partials only ever come from this phone's own speech.
+   */
+  isOwnUtterance: boolean;
+  /** The language spoken, known in a room (D-015); `null` at a table (D-008). */
+  languageCode: LanguageCode | null;
   translation: CaptionTranslation | null;
   hasTranslationFailed: boolean;
 };
 
+export type ConversationRoomState = {
+  roomCode: string;
+  participants: RoomParticipant[];
+};
+
 export type ConversationState = {
   participantId: string | null;
+  /** `null` in table mode, and until the API answers `create_room` or `join_room`. */
+  room: ConversationRoomState | null;
+  /** Who left last, until someone joins again. */
+  departedParticipantName: string | null;
   captions: Caption[];
   latestError: { code: ErrorCode; message: string } | null;
 };
@@ -37,27 +53,27 @@ export type ConversationEvent = ServerMessage | PlaybackStartedEvent;
 
 export const INITIAL_CONVERSATION_STATE: ConversationState = {
   participantId: null,
+  room: null,
+  departedParticipantName: null,
   captions: [],
   latestError: null,
 };
 
-function createCaption(utteranceId: string, text: string, isFinal: boolean): Caption {
-  return { utteranceId, text, isFinal, translation: null, hasTranslationFailed: false };
-}
+type TranscriptUpdate = Pick<
+  Caption,
+  'utteranceId' | 'text' | 'isFinal' | 'isOwnUtterance' | 'languageCode'
+>;
 
-function upsertTranscript(
-  captions: Caption[],
-  { utteranceId, text, isFinal }: { utteranceId: string; text: string; isFinal: boolean },
-): Caption[] {
-  const existingCaption = captions.find((caption) => caption.utteranceId === utteranceId);
+function upsertTranscript(captions: Caption[], update: TranscriptUpdate): Caption[] {
+  const existingCaption = captions.find((caption) => caption.utteranceId === update.utteranceId);
   if (!existingCaption) {
-    return [...captions, createCaption(utteranceId, text, isFinal)];
+    return [...captions, { ...update, translation: null, hasTranslationFailed: false }];
   }
   // A late partial must not turn a finished caption back into a partial one.
-  if (existingCaption.isFinal && !isFinal) {
+  if (existingCaption.isFinal && !update.isFinal) {
     return captions;
   }
-  return updateCaption(captions, utteranceId, (caption) => ({ ...caption, text, isFinal }));
+  return updateCaption(captions, update.utteranceId, (caption) => ({ ...caption, ...update }));
 }
 
 function updateCaption(
@@ -78,8 +94,39 @@ export function reduceConversation(
     case 'session_ready':
       return { ...state, participantId: event.participantId, latestError: null };
 
+    case 'room_joined':
+      return {
+        ...state,
+        participantId: event.participantId,
+        room: { roomCode: event.roomCode, participants: [] },
+        latestError: null,
+      };
+
+    case 'room_state':
+      return {
+        ...state,
+        room: { roomCode: event.roomCode, participants: event.participants },
+        departedParticipantName:
+          event.participants.length > 1 ? null : state.departedParticipantName,
+      };
+
+    case 'participant_left':
+      return { ...state, departedParticipantName: event.participantName };
+
     // Speech coming through means the earlier problem is over.
     case 'transcript_partial':
+      return {
+        ...state,
+        latestError: null,
+        captions: upsertTranscript(state.captions, {
+          utteranceId: event.utteranceId,
+          text: event.text,
+          isFinal: false,
+          isOwnUtterance: true,
+          languageCode: null,
+        }),
+      };
+
     case 'transcript_final':
       return {
         ...state,
@@ -87,7 +134,9 @@ export function reduceConversation(
         captions: upsertTranscript(state.captions, {
           utteranceId: event.utteranceId,
           text: event.text,
-          isFinal: event.type === 'transcript_final',
+          isFinal: true,
+          isOwnUtterance: event.speakerParticipantId === state.participantId,
+          languageCode: event.languageCode,
         }),
       };
 

@@ -1,6 +1,9 @@
 import { clientMessageSchema } from '@samvaad/shared';
 import { findErrorCodeForInvalidMessage } from '../lib/find-error-code-for-invalid-message';
 import type { ConversationConnection } from './conversation-connection';
+import { handleCreateRoom } from './handle-create-room';
+import { handleJoinRoom } from './handle-join-room';
+import { handleLeaveRoom } from './handle-leave-room';
 import { handleMicrophoneState } from './handle-microphone-state';
 import { handlePlaybackStarted } from './handle-playback-started';
 import { handleStartTableSession } from './handle-start-table-session';
@@ -34,6 +37,15 @@ export function handleClientMessage(connection: ConversationConnection, messageT
   switch (message.type) {
     case 'start_table_session':
       handleStartTableSession(connection, message);
+      return;
+    case 'create_room':
+      handleCreateRoom(connection, message);
+      return;
+    case 'join_room':
+      handleJoinRoom(connection, message);
+      return;
+    case 'leave_room':
+      handleLeaveRoom(connection);
       return;
     case 'microphone_state':
       handleMicrophoneState(connection, message);

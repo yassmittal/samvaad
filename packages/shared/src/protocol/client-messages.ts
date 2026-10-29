@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { roomCodeSchema } from '../domain/room-code';
 import { languageCodeSchema } from '../languages/supported-languages';
 
 /**
@@ -16,6 +17,37 @@ export const startTableSessionMessageSchema = z.object({
     }),
 });
 
+export const MAXIMUM_PARTICIPANT_NAME_LENGTH = 40;
+
+/** Shown to the others in the room. */
+export const participantNameSchema = z
+  .string()
+  .trim()
+  .min(1, { error: 'Enter your name.' })
+  .max(MAXIMUM_PARTICIPANT_NAME_LENGTH, {
+    error: `A name is at most ${MAXIMUM_PARTICIPANT_NAME_LENGTH} characters.`,
+  });
+
+/** Two-phone mode (D-008): open a room in your language. Leaves any room you are in first. */
+export const createRoomMessageSchema = z.object({
+  type: z.literal('create_room'),
+  participantName: participantNameSchema,
+  languageCode: languageCodeSchema,
+});
+
+/** Join someone's room by its code. Leaves any room you are in first. */
+export const joinRoomMessageSchema = z.object({
+  type: z.literal('join_room'),
+  roomCode: roomCodeSchema,
+  participantName: participantNameSchema,
+  languageCode: languageCodeSchema,
+});
+
+/** Leave the room, or end the table session. The socket stays open. */
+export const leaveRoomMessageSchema = z.object({
+  type: z.literal('leave_room'),
+});
+
 /** Sent when the microphone opens or closes. Audio frames are only accepted while open. */
 export const microphoneStateMessageSchema = z.object({
   type: z.literal('microphone_state'),
@@ -31,11 +63,17 @@ export const playbackStartedMessageSchema = z.object({
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   startTableSessionMessageSchema,
+  createRoomMessageSchema,
+  joinRoomMessageSchema,
+  leaveRoomMessageSchema,
   microphoneStateMessageSchema,
   playbackStartedMessageSchema,
 ]);
 
 export type StartTableSessionMessage = z.infer<typeof startTableSessionMessageSchema>;
+export type CreateRoomMessage = z.infer<typeof createRoomMessageSchema>;
+export type JoinRoomMessage = z.infer<typeof joinRoomMessageSchema>;
+export type LeaveRoomMessage = z.infer<typeof leaveRoomMessageSchema>;
 export type MicrophoneStateMessage = z.infer<typeof microphoneStateMessageSchema>;
 export type PlaybackStartedMessage = z.infer<typeof playbackStartedMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
