@@ -342,3 +342,49 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   Hindi recap called an unanswered offer agreed. One `compare:context` run: context fixed the
   name, product terms, a price said as bare numbers and the speaker's gender, and the median time
   to the first word was 1.29 s with context against 1.88 s without (one run, not a measurement).
+
+## D-017 — Phase 6 hardening: seat keeping, a room time limit, reopening a dropped stream, dark mode
+
+- **Decision (1 Nov, Phase 6.1 and 6.2; Yash asked for the rest of Phase 6 except submission):**
+  1. **A dropped socket keeps its seat for `PARTICIPANT_RECONNECT_GRACE_SECONDS` (60).** When a
+     room participant's socket closes without `leave_room`, the API closes their transcription
+     but keeps them in the room, marked not connected (`room_state` participants gain
+     `isConnected`). Nothing is translated for them meanwhile, so no Meta call is spent on a
+     phone that can't hear it. `join_room` gains an optional `previousParticipantId`: if that
+     participant is in the room, the new socket takes over the seat and keeps the id. That works
+     whether the API has noticed the old socket close or not (a phone that changed networks), and
+     the old socket is closed. After 60 s unclaimed, the participant leaves as before
+     (`participant_left`). The phone keeps its participant id in `sessionStorage` per room, so a
+     reload in the same tab gets the seat back too. `leave_room` still leaves at once. Table
+     mode is not kept: a reconnect starts a new table session, as before.
+  2. **A room closes its microphones after `MAX_ROOM_DURATION_MINUTES` (60).** Counted from the
+     room's creation (a table session's from its start). Once it is reached, the next audio
+     frame ends every open microphone in the room, everyone gets the new error code
+     `ROOM_TIME_LIMIT_REACHED`, and opening a microphone there is refused with it. Context and
+     End & recap still work. A forgotten open mic therefore stops within the hour. Checked at
+     each audio frame rather than by a timer, so nothing needs cancelling when a room closes.
+  3. **A stream that worked and then broke is reopened on its own.** When Meta ends a stream
+     after a successful handshake ("Ingress audio slower than real-time", seen in Phase 3) while
+     the microphone is still on, the API opens a new stream with the same language bias and
+     keywords instead of reporting `UPSTREAM_UNAVAILABLE`. At most
+     `MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE` (3) times a minute; past that, and for a stream
+     whose handshake failed, the browser is told as before. The utterance in progress on the
+     broken stream is lost.
+  4. **A screen wake lock** while a room or a table session is on screen, re-requested when
+     the page becomes visible again (D-001). Where the browser has no wake lock API, nothing
+     happens.
+  5. **Every error code has a plain sentence and a next step in the UI**, enforced by a
+     `Record<ErrorCode, string>`, so a new code doesn't compile without one.
+  6. **Dark mode follows the phone's setting** (`prefers-color-scheme`). The components use the
+     stone scale and white surfaces, so dark mode swaps the stone scale end for end and the
+     surface colour in one place, `globals.css`, instead of adding `dark:` to every class. The
+     status line says "Listening", "Translating" and "Speaking" so each state is clear.
+- **Why:** Mobile data drops sockets, and a dropped phone used to come back as a new participant,
+  or find the room full. A forgotten open mic was the one way to drain the credit unattended.
+- **Trade-off:** Anyone in the room sees the other participant's id in `room_state`, so they could
+  take that seat. In a two-person room that only means kicking the other person out; not worth a
+  separate token for the MVP. Translations during a dropped phone's gap are not sent later.
+  The palette swap keeps component classes unchanged, but a colour outside the stone scale (rose,
+  amber, indigo) is the same in both modes.
+- **Revisit when:** rooms need more than two people, or a translation missed during a reconnect
+  needs to be resent.

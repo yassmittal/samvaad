@@ -19,7 +19,7 @@ type ConversationContextEditorProps = {
 };
 
 const INPUT_CLASS_NAME =
-  'min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-base';
+  'min-w-0 flex-1 rounded-xl border border-stone-200 bg-surface px-3 py-2 text-base';
 
 /**
  * "What's this conversation about?" and a glossary: a term, and how it is said in the other
@@ -54,7 +54,7 @@ export function ConversationContextEditor({
       <button
         type="button"
         onClick={() => onDraftChange(createContextDraft(DEMO_CONVERSATION_PRESET.context))}
-        className="self-start rounded-full bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-200"
+        className="self-start rounded-full bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
       >
         Use the demo: {DEMO_CONVERSATION_PRESET.presetName}
       </button>
@@ -69,7 +69,7 @@ export function ConversationContextEditor({
           maxLength={MAXIMUM_SETTING_LENGTH}
           rows={3}
           placeholder="Who is talking, about what. For example: an exporter and a buyer agreeing an order; prices in rupees."
-          className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-base"
+          className="rounded-xl border border-stone-200 bg-surface px-3 py-2 text-base"
         />
       </label>
 

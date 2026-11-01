@@ -10,6 +10,11 @@ import { useCallback, useRef, useState } from 'react';
 import { useConversation } from '../conversation/use-conversation';
 import { unlockSpeech } from '../speech-output/unlock-speech';
 import { type RoomEntry, rememberRoomEntry } from './remembered-room-entry';
+import {
+  findRememberedParticipantId,
+  forgetParticipantId,
+  rememberParticipantId,
+} from './remembered-room-seat';
 
 export type RoomJoinFailureCode = Extract<ErrorCode, 'ROOM_NOT_FOUND' | 'ROOM_FULL'>;
 
@@ -42,8 +47,15 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
     (sendClientMessage: (message: ClientMessage) => void, entry: RoomEntry) => {
       const roomCode = joinedRoomCodeRef.current ?? requestedRoomCode;
       if (roomCode !== null) {
+        // After a dropped socket or a reload, ask for this tab's old seat back (D-017).
+        const previousParticipantId = findRememberedParticipantId(roomCode);
         // A room someone is still in keeps its context; rejoining doesn't resend ours.
-        sendClientMessage({ type: 'join_room', roomCode, ...entry });
+        sendClientMessage({
+          type: 'join_room',
+          roomCode,
+          ...entry,
+          ...(previousParticipantId === null ? {} : { previousParticipantId }),
+        });
         return;
       }
       sendClientMessage({ type: 'create_room', ...entry });
@@ -58,8 +70,7 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
 
   const { conversation, sendClientMessage, ...conversationControls } = useConversation({
     onSocketOpen(socketClient) {
-      // After a dropped socket the API has forgotten us: rejoin, as a new participant, if
-      // the room is still open. Keeping the seat is Phase 6.
+      // After a dropped socket, rejoin: the room keeps this phone's seat for a minute (D-017).
       const entry = roomEntryRef.current;
       if (entry) {
         sendEntryMessage(socketClient.sendClientMessage, entry);
@@ -68,6 +79,7 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
     onServerMessage(message) {
       if (message.type === 'room_joined') {
         joinedRoomCodeRef.current = message.roomCode;
+        rememberParticipantId(message.roomCode, message.participantId);
         // A created room gets its shareable address; no reload, so the socket stays open.
         const roomPath = `/room/${message.roomCode}`;
         if (window.location.pathname !== roomPath) {
@@ -98,6 +110,9 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
 
   const leaveRoom = useCallback(() => {
     roomEntryRef.current = null;
+    if (joinedRoomCodeRef.current !== null) {
+      forgetParticipantId(joinedRoomCodeRef.current);
+    }
     sendClientMessage({ type: 'leave_room' });
   }, [sendClientMessage]);
 

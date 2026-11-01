@@ -10,10 +10,12 @@ import {
 import { EndConversationButton } from '../recap/end-conversation-button';
 import { RecapView } from '../recap/recap-view';
 import { CaptionList } from './caption-list';
+import { isWaitingForTranslation } from './conversation-reducer';
 import { ConversationStatus } from './conversation-status';
 import { LanguagePairPicker } from './language-pair-picker';
 import { LatencyMeter } from './latency-meter';
 import { MicrophoneButton } from './microphone-button';
+import { useScreenWakeLock } from './use-screen-wake-lock';
 import { type LanguagePair, useTableConversation } from './use-table-conversation';
 
 function NoVoiceNotice({
@@ -30,7 +32,7 @@ function NoVoiceNotice({
     return null;
   }
   return (
-    <p className="text-sm text-amber-700">
+    <p className="text-sm text-amber-700 dark:text-amber-400">
       Captions only for {unspokenLanguageNames.join(' and ')} on this phone: it has no voice for{' '}
       {unspokenLanguageNames.length === 1 ? 'it' : 'them'}.
     </p>
@@ -57,6 +59,7 @@ export function TableConversation() {
     retryConnection,
   } = useTableConversation();
   const [isContextOpen, setIsContextOpen] = useState(false);
+  useScreenWakeLock();
   const isConnected = socketStatus === 'open';
   const hasFinishedUtterance = captions.some((caption) => caption.isFinal);
 
@@ -122,6 +125,7 @@ export function TableConversation() {
             socketStatus={socketStatus}
             microphoneStatus={microphoneStatus}
             isSpeaking={isSpeaking}
+            isTranslating={isWaitingForTranslation(captions, null)}
             latestError={latestError}
           />
           {socketStatus === 'closed' && (

@@ -41,7 +41,7 @@ export function ConversationContextPanel({
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-4">
+    <section className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-surface p-4">
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Context</h2>
         <p className="text-sm text-stone-500">
@@ -53,7 +53,7 @@ export function ConversationContextPanel({
       </div>
       <ConversationContextEditor draft={draft} onDraftChange={setDraft} />
       {problemText && (
-        <p role="alert" className="text-sm text-rose-600">
+        <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
           {problemText}
         </p>
       )}
@@ -69,7 +69,7 @@ export function ConversationContextPanel({
           type="button"
           onClick={handleSave}
           disabled={isDisabled}
-          className="rounded-full bg-stone-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-40"
+          className="rounded-full bg-stone-900 px-4 py-1.5 text-sm font-medium text-stone-50 hover:bg-stone-700 disabled:opacity-40"
         >
           Save
         </button>

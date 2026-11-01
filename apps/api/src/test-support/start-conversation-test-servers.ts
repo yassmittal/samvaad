@@ -14,6 +14,8 @@ type ConversationTestServersOptions = {
     requestBody: Record<string, unknown>,
     requestIndex: number,
   ) => ScriptedTranslation;
+  /** More API env, such as a short `PARTICIPANT_RECONNECT_GRACE_SECONDS`. */
+  env?: Record<string, string>;
 };
 
 const DEFAULT_SCRIPTED_TRANSLATION: ScriptedTranslation = { chunks: ['en\n', 'Translated.'] };
@@ -29,6 +31,7 @@ export async function startConversationTestServers(options: ConversationTestServ
     META_API_KEY: 'test-key',
     META_TRANSCRIPTION_URL: fakeMetaServer.url,
     META_CHAT_COMPLETIONS_URL: fakeMuseSparkServer.chatCompletionsUrl,
+    ...options.env,
   });
   const server = await buildServer({ env, isLoggingEnabled: false });
   const httpUrl = await server.listen({ port: 0, host: '127.0.0.1' });

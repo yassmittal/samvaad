@@ -82,7 +82,7 @@ export function RoomEntryForm({ roomCode, isConnected, onSubmit }: RoomEntryForm
           maxLength={MAXIMUM_PARTICIPANT_NAME_LENGTH}
           autoComplete="given-name"
           placeholder="Shown to the other person"
-          className="rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base"
+          className="rounded-xl border border-stone-200 bg-surface px-3 py-2.5 text-base"
         />
       </label>
       <LanguageSelect
@@ -94,7 +94,7 @@ export function RoomEntryForm({ roomCode, isConnected, onSubmit }: RoomEntryForm
       {/* The transcriber already listens for English mixed in (D-015, D-016). */}
       <p className="-mt-3 text-xs text-stone-500">Mixing in English is fine.</p>
       {isCreating && (
-        <details className="rounded-xl border border-stone-200 bg-white p-3">
+        <details className="rounded-xl border border-stone-200 bg-surface p-3">
           <summary className="cursor-pointer font-medium text-stone-700">
             Context for the translation <span className="text-stone-400">(optional)</span>
           </summary>
@@ -103,20 +103,20 @@ export function RoomEntryForm({ roomCode, isConnected, onSubmit }: RoomEntryForm
           </div>
         </details>
       )}
-      <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
         <strong className="font-medium">Earbuds recommended.</strong> You hear the translation in
         your own ear, and your phone doesn’t hear itself. Without them, take turns: the microphone
         pauses while your phone speaks.
       </p>
       {problemText && (
-        <p role="alert" className="text-sm text-rose-600">
+        <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
           {problemText}
         </p>
       )}
       <button
         type="submit"
         disabled={!isConnected}
-        className="rounded-2xl bg-stone-900 px-5 py-3 text-lg font-medium text-white shadow-sm transition hover:bg-stone-700 disabled:opacity-40"
+        className="rounded-2xl bg-stone-900 px-5 py-3 text-lg font-medium text-stone-50 shadow-sm transition hover:bg-stone-700 disabled:opacity-40"
       >
         {roomCode === null ? 'Create the room' : `Join room ${roomCode}`}
       </button>

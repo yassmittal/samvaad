@@ -59,7 +59,7 @@ function TranslationFooter({
 
 function TranslationText({ translation }: { translation: CaptionTranslation }) {
   return (
-    <p className="text-lg leading-relaxed text-stone-900">
+    <p className="text-xl leading-relaxed text-stone-900">
       <span className="sr-only">
         {SUPPORTED_LANGUAGE_BY_CODE[translation.targetLanguageCode].englishName}:{' '}
       </span>
@@ -69,7 +69,11 @@ function TranslationText({ translation }: { translation: CaptionTranslation }) {
 }
 
 function TranslationFailure() {
-  return <p className="text-sm text-rose-600">This sentence couldn’t be translated.</p>;
+  return (
+    <p className="text-sm text-rose-600 dark:text-rose-400">
+      This sentence couldn’t be translated. Say it again.
+    </p>
+  );
 }
 
 /** Before the first words arrive. A stream that breaks later keeps its words and says so. */
@@ -77,14 +81,14 @@ function TranslationPending({ caption }: { caption: Caption }) {
   if (caption.hasTranslationFailed) {
     return <TranslationFailure />;
   }
-  return <p className="animate-pulse text-lg text-stone-300">Translating…</p>;
+  return <p className="animate-pulse text-xl text-stone-300">Translating…</p>;
 }
 
 /** Table mode: both people read one phone, so every bubble has the transcript and its translation. */
 function TableCaptionBubble({ caption, ...speechControls }: { caption: Caption } & SpeechControls) {
   const { translation } = caption;
   return (
-    <li className="flex flex-col gap-1.5 rounded-2xl bg-white px-4 py-3 shadow-sm">
+    <li className="flex flex-col gap-1.5 rounded-2xl bg-surface px-4 py-3 shadow-sm">
       <p className="leading-relaxed text-stone-500">{caption.text}</p>
       {translation ? (
         <>
@@ -102,7 +106,7 @@ function TableCaptionBubble({ caption, ...speechControls }: { caption: Caption }
 /** A room, my own utterance: the other phone gets the translation, I only see what I said. */
 function OwnCaptionBubble({ caption }: { caption: Caption }) {
   return (
-    <li className="ml-10 self-end rounded-2xl bg-stone-900 px-4 py-3 text-lg leading-relaxed text-white shadow-sm">
+    <li className="ml-10 self-end rounded-2xl bg-stone-900 px-4 py-3 text-lg leading-relaxed text-stone-50 shadow-sm">
       {caption.text}
     </li>
   );
@@ -118,13 +122,13 @@ function TheirCaptionBubble({
   // Spoken in my language: no translation is coming, the transcript is it.
   if (caption.languageCode === listenerLanguageCode) {
     return (
-      <li className="mr-10 rounded-2xl bg-white px-4 py-3 text-lg leading-relaxed text-stone-900 shadow-sm">
+      <li className="mr-10 rounded-2xl bg-surface px-4 py-3 text-xl leading-relaxed text-stone-900 shadow-sm">
         {caption.text}
       </li>
     );
   }
   return (
-    <li className="mr-10 flex flex-col gap-1.5 rounded-2xl bg-white px-4 py-3 shadow-sm">
+    <li className="mr-10 flex flex-col gap-1.5 rounded-2xl bg-surface px-4 py-3 shadow-sm">
       {translation ? (
         <TranslationText translation={translation} />
       ) : (

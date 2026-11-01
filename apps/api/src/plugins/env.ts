@@ -8,6 +8,10 @@ const DEFAULT_META_TRANSCRIPTION_URL = 'wss://api.meta.ai/v1/asr/realtime';
 const DEFAULT_META_CHAT_COMPLETIONS_URL = 'https://api.meta.ai/v1/chat/completions';
 // Verified in Phase 0; the -contributor variants train on prompts, so not for people's talk (D-006).
 const DEFAULT_META_TRANSLATION_MODEL_ID = 'muse-spark-1.3';
+// A forgotten open mic stops within the hour (D-017).
+const DEFAULT_MAX_ROOM_DURATION_MINUTES = 60;
+// How long a room keeps the seat of a phone whose socket dropped (D-017).
+const DEFAULT_PARTICIPANT_RECONNECT_GRACE_SECONDS = 60;
 const MISSING_META_API_KEY_MESSAGE =
   'is required. Copy apps/api/.env.example to apps/api/.env and set your Meta Model API key.';
 
@@ -21,6 +25,15 @@ export const apiEnvSchema = z.object({
   META_CHAT_COMPLETIONS_URL: z.url().default(DEFAULT_META_CHAT_COMPLETIONS_URL),
   META_TRANSLATION_MODEL_ID: z.string().min(1).default(DEFAULT_META_TRANSLATION_MODEL_ID),
   PORT: z.coerce.number().int().min(1).max(65_535).default(DEFAULT_PORT),
+  /** Tests use fractions to reach the limits in milliseconds. */
+  MAX_ROOM_DURATION_MINUTES: z.coerce
+    .number()
+    .positive()
+    .default(DEFAULT_MAX_ROOM_DURATION_MINUTES),
+  PARTICIPANT_RECONNECT_GRACE_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(DEFAULT_PARTICIPANT_RECONNECT_GRACE_SECONDS),
   ALLOWED_WEB_ORIGINS: z
     .string()
     .default(DEFAULT_ALLOWED_WEB_ORIGINS)

@@ -1,8 +1,11 @@
 import type { ConversationConnection } from './conversation-connection';
+import { enforceRoomTimeLimit } from './room-time-limit';
 
 export function handleAudioFrame(connection: ConversationConnection, frame: Uint8Array): void {
   if (connection.activeTranscription) {
-    connection.activeTranscription.stream.sendAudioFrame(frame);
+    if (!enforceRoomTimeLimit(connection)) {
+      connection.activeTranscription.stream.sendAudioFrame(frame);
+    }
     return;
   }
   // Frames still in flight after the mic closes are expected; say so once, not 12 times a second.

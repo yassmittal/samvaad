@@ -42,6 +42,11 @@ export const joinRoomMessageSchema = z.object({
   roomCode: roomCodeSchema,
   participantName: participantNameSchema,
   languageCode: languageCodeSchema,
+  /**
+   * This phone's id from before its socket dropped or the page reloaded: take that seat back,
+   * if the room still keeps it (D-017). Otherwise it joins as a new participant.
+   */
+  previousParticipantId: z.string().optional(),
 });
 
 /** Leave the room, or end the table session. The socket stays open. */

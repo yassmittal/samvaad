@@ -8,7 +8,7 @@ type ParticipantListProps = {
   participantId: string | null;
 };
 
-/** Who's here, their language, and whether their microphone is on. */
+/** Who's here, their language, whether their microphone is on, and whether they're connected. */
 export function ParticipantList({ participants, participantId }: ParticipantListProps) {
   return (
     <ul className="flex flex-wrap gap-2">
@@ -18,7 +18,7 @@ export function ParticipantList({ participants, participantId }: ParticipantList
         return (
           <li
             key={participant.participantId}
-            className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-sm"
+            className={`flex items-center gap-2 rounded-full border border-stone-200 bg-surface px-3 py-1 text-sm ${participant.isConnected ? '' : 'opacity-50'}`}
           >
             <span
               aria-hidden
@@ -29,6 +29,7 @@ export function ParticipantList({ participants, participantId }: ParticipantList
               {isThisPhone && <span className="font-normal text-stone-400"> (you)</span>}
             </span>
             <span className="text-stone-500">{language.nativeName}</span>
+            {!participant.isConnected && <span className="text-stone-500">· reconnecting</span>}
             <span className="sr-only">
               {participant.isMicrophoneOpen ? 'microphone on' : 'microphone off'}
             </span>

@@ -78,7 +78,7 @@ they need them.
 | `start_table_session { languageCodes: [a, b] }` | 1 | Table mode: one phone, two languages |
 | `microphone_state { isOpen }` | 1 | Mic opened or closed (also sent when muted during playback) |
 | `create_room { participantName, languageCode }` | 4 | Two-phone mode |
-| `join_room { roomCode, participantName, languageCode }` | 4 | Two-phone mode |
+| `join_room { roomCode, participantName, languageCode, previousParticipantId? }` | 4 | Two-phone mode. `previousParticipantId` takes back a seat kept after a dropped socket (Phase 6, D-017) |
 | `leave_room` | 4 | Leave the room; the socket stays open |
 | `playback_started { utteranceId }` | 2 | For the latency meter |
 | `update_conversation_context { setting, glossaryTerms: [{ term, preferredTranslation }] }` | 5 | The room's context for translation; either participant, any time (D-016) |
@@ -94,8 +94,8 @@ they need them.
 | `translation_delta { utteranceId, targetLanguageCode, textDelta }` | 2 | Translation arriving |
 | `translation_complete { utteranceId, targetLanguageCode, text, timings }` | 2 | Speak this now |
 | `room_joined { roomCode, participantId }` | 4 | You created or joined this room, as this participant |
-| `room_state { roomCode, participants }` | 4 | Who is here, their language and whether their mic is on. Sent to everyone on every change |
-| `participant_left { participantId, participantName }` | 4 | Someone left (or their socket closed) |
+| `room_state { roomCode, participants }` | 4 | Who is here, their language, whether their mic is on and whether they are connected (Phase 6). Sent to everyone on every change |
+| `participant_left { participantId, participantName }` | 4 | Someone left, or their socket closed and they didn't come back within 60 s (D-017) |
 | `conversation_context { setting, glossaryTerms, updatedByParticipantName }` | 5 | The room's context, to everyone on every change and to a phone when it joins |
 | `conversation_ended { participantName }` | 5 | Someone ended the conversation; recaps follow. Mics close |
 | `conversation_recap { languageCode, text }` | 5 | End-of-conversation recap, to the participants listening in that language |
@@ -110,5 +110,5 @@ they need them.
 | Browser voice missing for a language on a phone | Captions always show; the UI says when no voice is available |
 | iOS Safari blocks speech until a tap | The "Start" button unlocks speech with an empty utterance |
 | Echo in table mode | The mic is muted while the phone is speaking (D-008) |
-| Mobile networks drop the WebSocket | Reconnect with the same participant id; the room keeps the seat for 60 s (Phase 6) |
+| Mobile networks drop the WebSocket | Reconnect with the same participant id; the room keeps the seat for 60 s (D-017) |
 | Meta API rate limits or credit running out | Spend limit alert on the Billing page; only final transcripts are translated |

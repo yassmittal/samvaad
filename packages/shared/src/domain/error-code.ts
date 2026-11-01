@@ -8,6 +8,7 @@ export const errorCodeSchema = z.enum([
   'ROOM_NOT_FOUND',
   'ROOM_FULL',
   'RECAP_UNAVAILABLE',
+  'ROOM_TIME_LIMIT_REACHED',
   'INTERNAL_ERROR',
 ]);
 

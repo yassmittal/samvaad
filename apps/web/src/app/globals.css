@@ -1,7 +1,34 @@
 @import "tailwindcss";
 
+@theme {
+  /* Cards, caption bubbles and inputs. White on the stone-50 page in light mode. */
+  --color-surface: #fff;
+}
+
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+}
+
+/*
+ * Dark mode follows the phone's setting (D-017). The components are written in the stone scale,
+ * so dark mode swaps the scale end for end (50 ↔ 950, 100 ↔ 900, …) and darkens the surface,
+ * instead of a `dark:` variant on every class. Values from Tailwind 4's theme.css.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-stone-50: oklch(14.7% 0.004 49.25);
+    --color-stone-100: oklch(21.6% 0.006 56.043);
+    --color-stone-200: oklch(26.8% 0.007 34.298);
+    --color-stone-300: oklch(37.4% 0.01 67.558);
+    --color-stone-400: oklch(44.4% 0.011 73.639);
+    --color-stone-500: oklch(55.3% 0.013 58.071);
+    --color-stone-600: oklch(70.9% 0.01 56.259);
+    --color-stone-700: oklch(86.9% 0.005 56.366);
+    --color-stone-800: oklch(92.3% 0.003 48.717);
+    --color-stone-900: oklch(97% 0.001 106.424);
+    --color-stone-950: oklch(98.5% 0.001 106.423);
+    --color-surface: oklch(21.6% 0.006 56.043);
+  }
 }
 
 body {

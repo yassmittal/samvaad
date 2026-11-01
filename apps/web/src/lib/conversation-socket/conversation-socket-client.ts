@@ -1,6 +1,7 @@
 import {
   type ClientMessage,
   clientMessageSchema,
+  SEAT_TAKEN_OVER_CLOSE_CODE,
   type ServerMessage,
   serverMessageSchema,
 } from '@samvaad/shared';
@@ -12,7 +13,13 @@ const CONNECT_TIMEOUT_MILLISECONDS = 10_000;
 const MAXIMUM_RECONNECT_ATTEMPTS = 5;
 const FIRST_RECONNECT_DELAY_MILLISECONDS = 1000;
 
-export type ConversationSocketStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
+export type ConversationSocketStatus =
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'closed'
+  /** Another tab or phone took this one's seat in the room (D-017). Not retried on its own. */
+  | 'replaced';
 
 type ConversationSocketClientOptions = {
   apiBaseUrl: string;
@@ -23,7 +30,7 @@ type ConversationSocketClientOptions = {
 export type ConversationSocketClient = {
   sendClientMessage: (message: ClientMessage) => void;
   sendAudioFrame: (frame: ArrayBuffer) => void;
-  /** Starts over after the client gave up (status `closed`). */
+  /** Starts over after the client gave up (status `closed` or `replaced`). */
   reconnect: () => void;
   close: () => void;
 };
@@ -101,11 +108,17 @@ export function createConversationSocketClient({
       }
     });
 
-    connectingSocket.addEventListener('close', () => {
+    connectingSocket.addEventListener('close', (event) => {
       clearTimeout(connectTimeout);
-      if (!isClosedByUs && socket === connectingSocket) {
-        scheduleReconnect();
+      if (isClosedByUs || socket !== connectingSocket) {
+        return;
       }
+      // Retrying would take the seat back from the other tab, which would take it back again.
+      if (event.code === SEAT_TAKEN_OVER_CLOSE_CODE) {
+        onStatusChange('replaced');
+        return;
+      }
+      scheduleReconnect();
     });
   }
 

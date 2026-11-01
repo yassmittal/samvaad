@@ -187,6 +187,12 @@ use `https://samvaad.yashmittal.xyz`.
 
 Turn the phone's Wi-Fi off. Close the laptop's dev servers.
 
+*(1 Nov: Yash ran a basic test on the phone, and it worked. The full list below is still open.)*
+
+After the Phase 6.2 update, also check: turn the phone's data off for ten seconds in a room and
+back on. The other phone shows "lost the connection", then the conversation carries on with no
+"Join" tap. Before 6.2 the phone came back as a new participant.
+
 - [ ] Table mode on `https://samvaad.yashmittal.xyz/table`: speak Hindi, hear English, and the
       reverse.
 - [ ] A room: create it on the laptop, join from the phone by QR, talk both ways, End & recap.
@@ -202,8 +208,10 @@ git pull
 pm2 restart samvaad-api
 ```
 
-A new variable in `.env.example` must be added to the server's `.env` before the restart, or the
-API refuses to start and names it (`pm2 logs samvaad-api`). A restart ends open rooms: don't
+A new required variable in `.env.example` must be added to the server's `.env` before the
+restart, or the API refuses to start and names it (`pm2 logs samvaad-api`). Commented-out ones
+(such as `MAX_ROOM_DURATION_MINUTES` and `PARTICIPANT_RECONNECT_GRACE_SECONDS`, D-017) have
+defaults and need nothing. A restart ends open rooms: don't
 restart during a demo. The web app redeploys on its own when you push.
 
 ## When something goes wrong

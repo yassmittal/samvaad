@@ -29,6 +29,10 @@ export type Room<Participant> = {
   utterances: ConversationUtterance[];
   /** Set while the recaps are being written, so a second tap doesn't pay for them twice. */
   isWritingRecap: boolean;
+  /** For `MAX_ROOM_DURATION_MINUTES` (D-017). */
+  createdAtEpochMilliseconds: number;
+  /** Set once the time limit closed the room's microphones; they stay closed (D-017). */
+  hasReachedTimeLimit: boolean;
 };
 
 export function createEmptyRoom<Participant>(roomCode: string | null): Room<Participant> {
@@ -40,6 +44,8 @@ export function createEmptyRoom<Participant>(roomCode: string | null): Room<Part
     context: EMPTY_CONVERSATION_CONTEXT,
     utterances: [],
     isWritingRecap: false,
+    createdAtEpochMilliseconds: Date.now(),
+    hasReachedTimeLimit: false,
   };
 }
 

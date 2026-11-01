@@ -9,7 +9,8 @@ and **Muse Spark** (context-aware translation).
 - [`docs/`](docs/README.md): architecture, decisions, coding standards and the phased plan.
 
 > Status: Phases 0 to 5 built: table mode, two-phone rooms, context-aware translation and the
-> end-of-conversation recap. Phase 6 (hosting and submission) is next. See
+> end-of-conversation recap. Phase 6: hosted at https://samvaad.yashmittal.xyz, with reconnects,
+> a room time limit, a screen wake lock and dark mode. Submission comes later. See
 > [`docs/README.md`](docs/README.md).
 
 ## Layout

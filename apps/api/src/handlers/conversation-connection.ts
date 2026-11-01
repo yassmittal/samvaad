@@ -39,10 +39,13 @@ export type RoomMembership = {
  * long as the socket (D-004).
  */
 export type ConversationConnection = {
+  /** Replaced by the old one when a phone comes back and takes its seat (D-017). */
   participantId: string;
   env: ApiEnv;
   logger: FastifyBaseLogger;
   sendServerMessage: (message: ServerMessage) => void;
+  /** Closes the browser's socket from the API's side, as when a newer one takes the seat. */
+  closeSocket: (closeCode: number, reason: string) => void;
   roomRegistry: ConversationRoomRegistry;
   /** Set by `start_table_session`, `create_room` or `join_room`. */
   membership: RoomMembership | null;
@@ -51,6 +54,13 @@ export type ConversationConnection = {
   /** Every upstream socket still open, including ones finishing their last utterance. */
   openTranscriptionStreams: Set<MetaTranscriptionStream>;
   hasReportedMicrophoneNotOpen: boolean;
+  /** When this connection's broken streams were reopened on their own, to cap it (D-017). */
+  automaticReopenEpochMilliseconds: number[];
+  /**
+   * Set while the socket is gone but the room keeps the seat (D-017). The participant is still
+   * in the room, shown as not connected, and nothing is sent or translated for them.
+   */
+  reconnectGraceTimeout: ReturnType<typeof setTimeout> | null;
   /** Translates this participant's utterances. */
   translationClient: MetaTranslationClient;
   /** Translations sent to this listener, waiting for `playback_started`, to log the whole delay (D-011). */
@@ -59,7 +69,7 @@ export type ConversationConnection = {
 
 type ConversationConnectionOptions = Pick<
   ConversationConnection,
-  'participantId' | 'env' | 'logger' | 'sendServerMessage' | 'roomRegistry'
+  'participantId' | 'env' | 'logger' | 'sendServerMessage' | 'closeSocket' | 'roomRegistry'
 >;
 
 export function createConversationConnection(
@@ -71,6 +81,8 @@ export function createConversationConnection(
     activeTranscription: null,
     openTranscriptionStreams: new Set(),
     hasReportedMicrophoneNotOpen: false,
+    automaticReopenEpochMilliseconds: [],
+    reconnectGraceTimeout: null,
     translationClient: createMetaTranslationClient({
       chatCompletionsUrl: options.env.META_CHAT_COMPLETIONS_URL,
       modelId: options.env.META_TRANSLATION_MODEL_ID,

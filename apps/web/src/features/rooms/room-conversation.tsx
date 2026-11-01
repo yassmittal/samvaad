@@ -4,9 +4,11 @@ import { SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
 import Link from 'next/link';
 import { useState } from 'react';
 import { CaptionList } from '../conversation/caption-list';
+import { isWaitingForTranslation } from '../conversation/conversation-reducer';
 import { ConversationStatus } from '../conversation/conversation-status';
 import { LatencyMeter } from '../conversation/latency-meter';
 import { MicrophoneButton } from '../conversation/microphone-button';
+import { useScreenWakeLock } from '../conversation/use-screen-wake-lock';
 import {
   ConversationContextChip,
   ConversationContextPanel,
@@ -32,7 +34,7 @@ function RoomUnavailable({ joinFailureCode }: { joinFailureCode: RoomJoinFailure
       {/* A full page load, so the new room starts with a fresh socket and state. */}
       <a
         href="/room/new"
-        className="rounded-2xl bg-stone-900 px-5 py-3 text-center text-lg font-medium text-white"
+        className="rounded-2xl bg-stone-900 px-5 py-3 text-center text-lg font-medium text-stone-50"
       >
         Start a new room
       </a>
@@ -120,10 +122,15 @@ function RoomConversationInRoom({
   } = roomConversation;
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isContextOpen, setIsContextOpen] = useState(false);
+  useScreenWakeLock();
   if (room === null || languageCode === null) {
     return null;
   }
   const isAlone = room.participants.length < 2;
+  // The room keeps a dropped phone's seat for a minute (D-017).
+  const disconnectedParticipant = room.participants.find(
+    (participant) => participant.participantId !== participantId && !participant.isConnected,
+  );
   const language = SUPPORTED_LANGUAGE_BY_CODE[languageCode];
   const isConnected = socketStatus === 'open';
   const hasFinishedUtterance = captions.some((caption) => caption.isFinal);
@@ -151,6 +158,12 @@ function RoomConversationInRoom({
           <LatencyMeter captions={captions} />
         </div>
         <ParticipantList participants={room.participants} participantId={participantId} />
+        {disconnectedParticipant && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {disconnectedParticipant.participantName} lost the connection. Waiting for them to come
+            back…
+          </p>
+        )}
         {isAlone && (
           <p className="text-sm text-stone-500">
             {departedParticipantName
@@ -159,7 +172,7 @@ function RoomConversationInRoom({
           </p>
         )}
         {!hasVoiceForLanguage(languageCode) && (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700 dark:text-amber-400">
             Captions only: this phone has no {language.englishName} voice.
           </p>
         )}
@@ -205,9 +218,10 @@ function RoomConversationInRoom({
             socketStatus={socketStatus}
             microphoneStatus={microphoneStatus}
             isSpeaking={isSpeaking}
+            isTranslating={isWaitingForTranslation(captions, languageCode)}
             latestError={latestError}
           />
-          {socketStatus === 'closed' && (
+          {(socketStatus === 'closed' || socketStatus === 'replaced') && (
             <button
               type="button"
               onClick={retryConnection}

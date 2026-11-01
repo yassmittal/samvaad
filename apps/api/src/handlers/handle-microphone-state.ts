@@ -1,6 +1,7 @@
 import type { MicrophoneStateMessage } from '@samvaad/shared';
 import type { ConversationConnection } from './conversation-connection';
 import { broadcastRoomState } from './room-messages';
+import { refuseMicrophoneAfterTimeLimit } from './room-time-limit';
 import { endTranscription, startTranscription } from './transcription-lifecycle';
 
 export function handleMicrophoneState(
@@ -24,7 +25,7 @@ export function handleMicrophoneState(
     });
     return;
   }
-  if (connection.activeTranscription) {
+  if (connection.activeTranscription || refuseMicrophoneAfterTimeLimit(connection)) {
     return;
   }
   connection.hasReportedMicrophoneNotOpen = false;

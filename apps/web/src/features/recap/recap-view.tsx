@@ -26,7 +26,7 @@ function RecapCard({ text, heading }: { text: string; heading: string | null }) 
   }
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4">
+    <article className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-surface p-4">
       {heading && (
         <h3 className="text-xs font-medium uppercase tracking-wide text-stone-500">{heading}</h3>
       )}
@@ -118,7 +118,7 @@ export function RecapView({
       )}
       {recap.hasFailed && (
         <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-rose-600">
+          <p role="alert" className="text-rose-600 dark:text-rose-400">
             The recap could not be written.
           </p>
           <button
@@ -136,7 +136,7 @@ export function RecapView({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-2xl bg-stone-900 px-5 py-3 font-medium text-white hover:bg-stone-700"
+          className="rounded-2xl bg-stone-900 px-5 py-3 font-medium text-stone-50 hover:bg-stone-700"
         >
           Back to the conversation
         </button>

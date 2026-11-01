@@ -25,7 +25,7 @@ export function LanguageSelect({
         value={languageCode}
         disabled={isDisabled}
         onChange={(event) => onChange(event.target.value as LanguageCode)}
-        className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-base disabled:opacity-50"
+        className="w-full rounded-xl border border-stone-200 bg-surface px-3 py-2.5 text-base disabled:opacity-50"
       >
         {SUPPORTED_LANGUAGES.filter(
           (language) => language.languageCode !== excludedLanguageCode,

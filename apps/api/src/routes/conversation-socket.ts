@@ -6,7 +6,7 @@ import {
 } from '../handlers/conversation-connection';
 import { handleAudioFrame } from '../handlers/handle-audio-frame';
 import { handleClientMessage } from '../handlers/handle-client-message';
-import { leaveCurrentRoom } from '../handlers/handle-leave-room';
+import { handleSocketClosed } from '../handlers/handle-socket-closed';
 import { isAllowedOrigin } from '../lib/is-allowed-origin';
 import { createRoomRegistry } from '../rooms/room-registry';
 
@@ -43,6 +43,9 @@ export async function conversationSocketRoutes(server: FastifyInstance) {
           socket.send(JSON.stringify(message));
         }
       },
+      closeSocket(closeCode, reason) {
+        socket.close(closeCode, reason);
+      },
     });
 
     socket.on('message', (data: RawSocketData, isBinary: boolean) => {
@@ -54,7 +57,7 @@ export async function conversationSocketRoutes(server: FastifyInstance) {
     });
 
     socket.on('close', () => {
-      leaveCurrentRoom(connection);
+      handleSocketClosed(connection);
     });
   });
 }

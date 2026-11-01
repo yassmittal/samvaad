@@ -14,7 +14,7 @@ import {
   produceTranslationMessages,
   type UtteranceToTranslate,
 } from './produce-translation-messages';
-import { findListeners } from './room-messages';
+import { findConnectedParticipants, findListeners } from './room-messages';
 
 /** Sends one translation message to everyone listening in its language, as it is delivered. */
 function sendToListeners(
@@ -83,7 +83,8 @@ export function startUtteranceTranslations(
 
   const plans = planUtteranceTranslations({
     speakerLanguageCodes: languageCodes,
-    roomLanguageCodes: [...room.participants.values()].flatMap((participant) =>
+    // A seat kept for a dropped phone gets nothing translated meanwhile (D-017).
+    roomLanguageCodes: findConnectedParticipants(room).flatMap((participant) =>
       participant.membership ? [participant.membership.languageCodes] : [],
     ),
   });

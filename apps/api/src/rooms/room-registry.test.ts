@@ -76,6 +76,28 @@ describe('createRoomRegistry', () => {
     expect(registry.joinRoom(roomCode, latecomer).isJoined).toBe(false);
   });
 
+  test('a phone coming back takes its old seat in a full room, keeping the seat order', () => {
+    const registry = createRoomRegistry<TestParticipant>();
+    const room = registry.createRoom(creator);
+    registry.joinRoom(room.roomCode, guest);
+    const returningCreator: TestParticipant = { participantId: 'new socket' };
+
+    const reclaimed = registry.reclaimSeat(room.roomCode, 'creator', returningCreator);
+
+    expect(reclaimed).toEqual({ room, previousParticipant: creator });
+    expect([...room.participants.keys()]).toEqual(['creator', 'guest']);
+    expect(room.participants.get('creator')).toBe(returningCreator);
+  });
+
+  test('no seat to take back: a gone room, an unknown id', () => {
+    const registry = createRoomRegistry<TestParticipant>();
+    const room = registry.createRoom(creator);
+
+    expect(registry.reclaimSeat('ZZZZZZ', 'creator', latecomer)).toBeNull();
+    expect(registry.reclaimSeat(room.roomCode, 'nobody', latecomer)).toBeNull();
+    expect([...room.participants.values()]).toEqual([creator]);
+  });
+
   test('a table room has no code, and leaving it empties it', () => {
     const registry = createRoomRegistry<TestParticipant>();
     const tableRoom = createTableRoom(creator);

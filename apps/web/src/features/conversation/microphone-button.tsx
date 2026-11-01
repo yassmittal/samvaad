@@ -18,11 +18,12 @@ export function MicrophoneButton({
 }: MicrophoneButtonProps) {
   const isOpen = microphoneStatus === 'open';
   const isOpening = microphoneStatus === 'opening';
-  const backgroundClassName = isSpeaking
-    ? 'bg-indigo-600'
+  // The closed button flips with the stone scale in dark mode, so its icon does too (D-017).
+  const colorClassName = isSpeaking
+    ? 'bg-indigo-600 text-white'
     : isOpen
-      ? 'bg-rose-600'
-      : 'bg-stone-900';
+      ? 'bg-rose-600 text-white'
+      : 'bg-stone-900 text-stone-50';
 
   return (
     <button
@@ -31,7 +32,7 @@ export function MicrophoneButton({
       disabled={isDisabled || isOpening}
       aria-pressed={isOpen}
       aria-label={isOpen ? 'Stop listening' : 'Start listening'}
-      className={`relative flex size-20 items-center justify-center rounded-full text-white shadow-lg transition disabled:opacity-40 ${backgroundClassName}`}
+      className={`relative flex size-20 items-center justify-center rounded-full shadow-lg transition disabled:opacity-40 ${colorClassName}`}
     >
       {isOpen && !isSpeaking && (
         <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-rose-500/40" />

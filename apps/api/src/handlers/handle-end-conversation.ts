@@ -1,7 +1,7 @@
 import type { LanguageCode, ServerMessage } from '@samvaad/shared';
 import { buildRecapSystemPrompt, formatRecapConversationText } from '../lib/build-recap-prompt';
 import type { ConversationConnection, ConversationRoom } from './conversation-connection';
-import { findListeners, sendToRoom } from './room-messages';
+import { findConnectedParticipants, findListeners, sendToRoom } from './room-messages';
 
 function sendToListenersIn(
   room: ConversationRoom,
@@ -13,11 +13,14 @@ function sendToListenersIn(
   }
 }
 
-/** One recap per language anyone in the room listens in: both of a table's (D-016). */
+/**
+ * One recap per language anyone connected in the room listens in: both of a table's (D-016).
+ * A seat kept for a dropped phone gets none (D-017).
+ */
 function findRecapLanguageCodes(room: ConversationRoom): LanguageCode[] {
   return [
     ...new Set(
-      [...room.participants.values()].flatMap((participant) =>
+      findConnectedParticipants(room).flatMap((participant) =>
         participant.membership ? [...participant.membership.languageCodes] : [],
       ),
     ),

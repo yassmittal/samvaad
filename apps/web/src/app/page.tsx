@@ -13,7 +13,7 @@ export default function HomePage() {
       </header>
 
       <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white px-5 py-4">
+        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-surface px-5 py-4">
           <div>
             <h2 className="text-lg font-medium">Talk on two phones</h2>
             <p className="text-sm text-stone-500">
@@ -23,7 +23,7 @@ export default function HomePage() {
           </div>
           <Link
             href="/room/new"
-            className="rounded-xl bg-stone-900 px-4 py-2.5 text-center font-medium text-white transition hover:bg-stone-700"
+            className="rounded-xl bg-stone-900 px-4 py-2.5 text-center font-medium text-stone-50 transition hover:bg-stone-700"
           >
             Start a room
           </Link>
@@ -32,7 +32,7 @@ export default function HomePage() {
 
         <Link
           href="/table"
-          className="rounded-2xl border border-stone-200 bg-white px-5 py-4 transition hover:bg-stone-100"
+          className="rounded-2xl border border-stone-200 bg-surface px-5 py-4 transition hover:bg-stone-100"
         >
           <span className="block text-lg font-medium">Table mode</span>
           <span className="block text-sm text-stone-500">

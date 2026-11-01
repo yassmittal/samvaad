@@ -13,6 +13,10 @@ import { startUtteranceTranslations } from './translate-utterance';
 // Meta caps a session at 60 minutes (D-005). Hand over to a fresh stream well before that.
 export const TRANSCRIPTION_STREAM_ROTATION_MILLISECONDS = 55 * 60 * 1000;
 
+// A stream that worked and then broke is reopened on its own, but not in a loop (D-017).
+export const MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE = 3;
+const AUTOMATIC_REOPEN_WINDOW_MILLISECONDS = 60 * 1000;
+
 // Each stream's tracker, so a glossary change can wait until its speaker is between utterances.
 const utteranceTrackersByStream = new WeakMap<MetaTranscriptionStream, UtteranceTracker>();
 
@@ -78,7 +82,10 @@ function openTranscriptionStream(
           transcriptFinalAtEpochMilliseconds,
         });
       },
-      onFailed() {
+      onFailed({ hasStreamed }) {
+        if (hasStreamed && reopenBrokenTranscription(connection, stream)) {
+          return;
+        }
         if (connection.activeTranscription?.stream === stream) {
           clearTimeout(connection.activeTranscription.rotationTimeout);
           connection.activeTranscription = null;
@@ -116,6 +123,35 @@ export function startTranscription(connection: ConversationConnection): void {
     rotationTimeout,
     isKeywordRefreshPending: false,
   };
+}
+
+/**
+ * The mic's stream worked, then Meta ended it ("Ingress audio slower than real-time", D-017).
+ * The mic is still on, so open a new stream instead of making the person tap again, at most
+ * `MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE` times. Returns `false` when it didn't.
+ */
+function reopenBrokenTranscription(
+  connection: ConversationConnection,
+  brokenStream: MetaTranscriptionStream,
+): boolean {
+  const { activeTranscription } = connection;
+  if (activeTranscription?.stream !== brokenStream) {
+    return false;
+  }
+  const nowEpochMilliseconds = Date.now();
+  connection.automaticReopenEpochMilliseconds = connection.automaticReopenEpochMilliseconds.filter(
+    (reopenedAtEpochMilliseconds) =>
+      nowEpochMilliseconds - reopenedAtEpochMilliseconds < AUTOMATIC_REOPEN_WINDOW_MILLISECONDS,
+  );
+  if (connection.automaticReopenEpochMilliseconds.length >= MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE) {
+    connection.logger.warn('transcription stream broke again: too many reopens, telling the phone');
+    return false;
+  }
+  connection.automaticReopenEpochMilliseconds.push(nowEpochMilliseconds);
+  connection.logger.info('transcription stream broke while the mic was on: opening a new one');
+  clearTimeout(activeTranscription.rotationTimeout);
+  startTranscription(connection);
+  return true;
 }
 
 /** Hands over to a fresh stream; the old one finishes its own utterance, then closes. */

@@ -34,7 +34,7 @@ When a decision changes, the doc changes first.
 | 3 — Spoken translation (**table mode done**) | Sat 31 Oct, afternoon | Done (checked on the Android phone; latency not yet recorded in D-011) |
 | 4 — Two-phone rooms (**core done**) | Sun 1 Nov | Done (30 Oct; checked on the Android phone and the laptop, QR included; latency not yet recorded in D-011) |
 | 5 — Context-aware translation and recap | Mon 2 Nov | Done (30 Oct; checked on the Android phone and the laptop, recap included; latency parked with D-011) |
-| 6 — Hosting, hardening and submission | Tue 3 Nov to Wed 4 Nov | In progress (1 Nov: hosted at `samvaad.yashmittal.xyz`, deployment steps 1–7 checked; the mobile-data run, the room minute cap, hardening and submission to do) |
+| 6 — Hosting, hardening and submission | Tue 3 Nov to Wed 4 Nov | 6.1 and 6.2 built (1 Nov: hosted at `samvaad.yashmittal.xyz`; seat keeping, room time limit, stream reopen, wake lock, error sentences, dark mode, D-017). The full mobile-data run is Yash's; 6.3 submission deferred |
 | 7 — Stretch (open weights, better voice) | Only if ahead | Not started |
 
 Update this table as phases finish.

@@ -65,6 +65,7 @@ describe('rooms: creating and joining', () => {
           participantName: 'Asha',
           languageCode: 'hi',
           isMicrophoneOpen: false,
+          isConnected: true,
         },
       ],
     });
@@ -297,7 +298,7 @@ describe('rooms: leaving mid-translation', () => {
     );
   });
 
-  test('the speaker leaving still delivers their last translation to the listener', async () => {
+  test('the speaker dropping still delivers their last translation to the listener', async () => {
     const room = await startHindiEnglishRoom({ createScriptedTranslation: slowTranslation });
     const hindiMetaConnection = await servers.openMicrophone(room.hindiBrowser);
     sendFinishedUtterance(hindiMetaConnection, { turnId: 0, transcript: 'नमस्ते, दोस्त।' });
@@ -305,9 +306,6 @@ describe('rooms: leaving mid-translation', () => {
 
     room.hindiBrowser.socket.close();
 
-    expect((await room.englishBrowser.waitForMessage('participant_left')).participantName).toBe(
-      'Asha',
-    );
     expect((await room.englishBrowser.waitForMessage('translation_complete')).text).toBe(
       'Hello, friend.',
     );

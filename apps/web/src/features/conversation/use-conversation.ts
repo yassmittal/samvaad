@@ -121,8 +121,13 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
   useEffect(() => () => microphoneGate.cancelPendingReopen(), [microphoneGate]);
 
   const handleServerMessage = useCallback((message: ServerMessage) => {
-    // The API has already closed its transcription stream; stop capturing to match.
-    if (message.type === 'error' && message.code === 'UPSTREAM_UNAVAILABLE') {
+    // The API has already closed its transcription stream; stop capturing to match. A failed
+    // translation (it has an `utteranceId`) leaves the microphone alone.
+    if (
+      message.type === 'error' &&
+      message.utteranceId === undefined &&
+      (message.code === 'UPSTREAM_UNAVAILABLE' || message.code === 'ROOM_TIME_LIMIT_REACHED')
+    ) {
       closeMicrophoneRef.current();
     }
     // Someone ended the conversation, here or on the other phone: stop listening (D-016).

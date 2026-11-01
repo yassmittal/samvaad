@@ -8,12 +8,19 @@ export function sendToRoom(room: ConversationRoom, message: ServerMessage): void
   }
 }
 
-/** Everyone in the room who listens in any of these languages. */
+/** The participants who can hear anything: not a seat kept for a dropped phone (D-017). */
+export function findConnectedParticipants(room: ConversationRoom): ConversationConnection[] {
+  return [...room.participants.values()].filter(
+    (participant) => participant.membership !== null && participant.reconnectGraceTimeout === null,
+  );
+}
+
+/** Everyone connected in the room who listens in any of these languages. */
 export function findListeners(
   room: ConversationRoom,
   candidateTargetLanguageCodes: readonly LanguageCode[],
 ): ConversationConnection[] {
-  return [...room.participants.values()].filter(
+  return findConnectedParticipants(room).filter(
     (participant) =>
       participant.membership !== null &&
       isListeningIn(participant.membership.languageCodes, candidateTargetLanguageCodes),
@@ -31,6 +38,7 @@ function toRoomParticipant(participant: ConversationConnection): RoomParticipant
       participantName: membership.participantName,
       languageCode: membership.languageCodes[0],
       isMicrophoneOpen: participant.activeTranscription !== null,
+      isConnected: participant.reconnectGraceTimeout === null,
     },
   ];
 }

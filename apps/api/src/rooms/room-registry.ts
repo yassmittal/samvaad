@@ -53,6 +53,24 @@ export function createRoomRegistry<Participant extends { participantId: string }
       return { isJoined: true, room };
     },
 
+    /**
+     * Seats `participant` where `previousParticipantId` sat, for a phone coming back after its
+     * socket dropped (D-017). The caller gives it that id. `null` if the room or seat is gone.
+     */
+    reclaimSeat(
+      roomCode: string,
+      previousParticipantId: string,
+      participant: Participant,
+    ): { room: Room<Participant>; previousParticipant: Participant } | null {
+      const room = roomsByCode.get(roomCode);
+      const previousParticipant = room?.participants.get(previousParticipantId);
+      if (!room || !previousParticipant || previousParticipant === participant) {
+        return null;
+      }
+      room.participants.set(previousParticipantId, participant);
+      return { room, previousParticipant };
+    },
+
     /** A room closes when its last participant leaves. Also works for a table room. */
     leaveRoom(room: Room<Participant>, participantId: string): void {
       room.participants.delete(participantId);

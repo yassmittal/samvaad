@@ -38,7 +38,7 @@ export function ShareRoomPanel({ roomCode }: { roomCode: string }) {
   }
 
   return (
-    <section className="flex flex-col items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4">
+    <section className="flex flex-col items-center gap-3 rounded-2xl border border-stone-200 bg-surface p-4">
       <div className="w-48">
         {roomUrl ? (
           <QrCode text={roomUrl} label={`QR code for the link to room ${roomCode}`} />

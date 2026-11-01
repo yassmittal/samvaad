@@ -20,7 +20,7 @@ export function ApiStatusPanel() {
 
   return (
     <section className="flex w-full flex-col gap-4">
-      <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-white px-5 py-4">
+      <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-surface px-5 py-4">
         <span
           aria-hidden
           className={`mt-1.5 size-2.5 shrink-0 rounded-full ${RESULT_DOT_CLASS[healthResult.state]}`}

@@ -23,8 +23,12 @@ export type TranscriptionStreamCallbacks = {
   onPartialTranscript: (text: string) => void;
   onSpeechEnded: (turnId: number, speechEndedAtEpochMilliseconds: number) => void;
   onFinalTranscript: (turnId: number, text: string) => void;
-  /** The stream broke before it was asked to end. Nothing more will arrive. */
-  onFailed: (reason: string) => void;
+  /**
+   * The stream broke before it was asked to end. Nothing more will arrive. `hasStreamed` says
+   * the handshake had succeeded, so it worked and then broke, as with Meta's "Ingress audio
+   * slower than real-time" (D-017).
+   */
+  onFailed: (failure: { reason: string; hasStreamed: boolean }) => void;
   /** The upstream socket is gone, for any reason. Always the last callback. */
   onClosed: () => void;
 };
@@ -83,9 +87,10 @@ export function createMetaTranscriptionStream({
     }
     logger.warn({ reason }, 'transcription stream failed');
     const wasEnding = state === 'ending';
+    const hasStreamed = state === 'streaming';
     finishClosing();
     if (!wasEnding) {
-      callbacks.onFailed(reason);
+      callbacks.onFailed({ reason, hasStreamed });
     }
     callbacks.onClosed();
   }

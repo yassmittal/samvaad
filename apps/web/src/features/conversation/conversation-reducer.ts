@@ -107,6 +107,48 @@ function upsertTranscript(captions: Caption[], update: TranscriptUpdate): Captio
   return updateCaption(captions, update.utteranceId, (caption) => ({ ...caption, ...update }));
 }
 
+/**
+ * A finished caption whose translation this phone will hear: every one at a table (D-008); in
+ * a room, the other person's, unless they spoke this phone's language.
+ */
+function isTranslatedForThisPhone(
+  caption: Caption,
+  listenerLanguageCode: LanguageCode | null,
+): boolean {
+  return (
+    caption.isFinal &&
+    (listenerLanguageCode === null ||
+      (!caption.isOwnUtterance && caption.languageCode !== listenerLanguageCode))
+  );
+}
+
+/** For the status line's "Translating…": the newest translation for this phone is on its way. */
+export function isWaitingForTranslation(
+  captions: Caption[],
+  listenerLanguageCode: LanguageCode | null,
+): boolean {
+  const newestCaption = captions
+    .filter((caption) => isTranslatedForThisPhone(caption, listenerLanguageCode))
+    .at(-1);
+  return (
+    newestCaption !== undefined &&
+    newestCaption.translation?.isComplete !== true &&
+    !newestCaption.hasTranslationFailed
+  );
+}
+
+/**
+ * Back in the room after a dropped socket (D-017): the API doesn't translate for an empty seat,
+ * so a translation still missing then never comes. Say so instead of "Translating…" forever.
+ */
+function markMissedTranslationsFailed(captions: Caption[]): Caption[] {
+  return captions.map((caption) =>
+    !caption.isOwnUtterance && caption.isFinal && caption.translation?.isComplete !== true
+      ? { ...caption, hasTranslationFailed: true }
+      : caption,
+  );
+}
+
 function updateCaption(
   captions: Caption[],
   utteranceId: string,
@@ -129,7 +171,9 @@ export function reduceConversation(
       return {
         ...state,
         participantId: event.participantId,
-        room: { roomCode: event.roomCode, participants: [] },
+        // A rejoin keeps who's here until the next room_state, so the screen doesn't blink.
+        room: { roomCode: event.roomCode, participants: state.room?.participants ?? [] },
+        captions: markMissedTranslationsFailed(state.captions),
         latestError: null,
       };
 

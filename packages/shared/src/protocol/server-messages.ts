@@ -6,6 +6,13 @@ import { languageCodeSchema } from '../languages/supported-languages';
 
 /** API → browser, as JSON text frames. */
 
+/**
+ * The close code the API uses when another socket took this one's seat (D-017): the same room
+ * opened in a duplicated tab, or a phone whose old socket was still open. The browser doesn't
+ * reconnect on its own, or two tabs would take the seat from each other forever.
+ */
+export const SEAT_TAKEN_OVER_CLOSE_CODE = 4001;
+
 export const sessionReadyMessageSchema = z.object({
   type: z.literal('session_ready'),
   participantId: z.string(),
@@ -24,6 +31,8 @@ export const roomParticipantSchema = z.object({
   participantName: z.string(),
   languageCode: languageCodeSchema,
   isMicrophoneOpen: z.boolean(),
+  /** `false` while the room keeps the seat of a phone whose socket dropped (D-017). */
+  isConnected: z.boolean(),
 });
 
 /** Who is in the room. Sent to everyone whenever someone joins, leaves or turns their mic on or off. */
@@ -33,7 +42,7 @@ export const roomStateMessageSchema = z.object({
   participants: z.array(roomParticipantSchema),
 });
 
-/** Someone left the room, or their connection closed. Followed by a `room_state`. */
+/** Someone left the room, or their socket closed and they didn't come back in time (D-017). */
 export const participantLeftMessageSchema = z.object({
   type: z.literal('participant_left'),
   participantId: z.string(),

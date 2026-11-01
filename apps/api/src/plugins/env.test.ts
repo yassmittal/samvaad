@@ -16,6 +16,8 @@ describe('parseApiEnv', () => {
 
     expect(env.PORT).toBe(4400);
     expect(env.ALLOWED_WEB_ORIGINS).toEqual(['http://localhost:3400']);
+    expect(env.MAX_ROOM_DURATION_MINUTES).toBe(60);
+    expect(env.PARTICIPANT_RECONNECT_GRACE_SECONDS).toBe(60);
   });
 
   test('splits a comma-separated list of allowed origins', () => {

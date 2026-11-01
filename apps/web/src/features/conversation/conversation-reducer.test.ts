@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   type ConversationState,
   INITIAL_CONVERSATION_STATE,
+  isWaitingForTranslation,
   reduceConversation,
 } from './conversation-reducer';
 
@@ -168,12 +169,14 @@ describe('reduceConversation', () => {
       participantName: 'Asha',
       languageCode: 'hi',
       isMicrophoneOpen: false,
+      isConnected: true,
     } as const;
     const BEN = {
       participantId: 'participant-ben',
       participantName: 'Ben',
       languageCode: 'en',
       isMicrophoneOpen: true,
+      isConnected: true,
     } as const;
 
     function createStateInRoomAsAsha(): ConversationState {
@@ -222,6 +225,59 @@ describe('reduceConversation', () => {
         { isOwnUtterance: true, languageCode: 'hi' },
         { isOwnUtterance: false, languageCode: 'en' },
       ]);
+    });
+
+    function addFinalCaption(
+      state: ConversationState,
+      utteranceId: string,
+      speaker: typeof ASHA | typeof BEN,
+    ): ConversationState {
+      return reduceConversation(state, {
+        type: 'transcript_final',
+        utteranceId,
+        speakerParticipantId: speaker.participantId,
+        languageCode: speaker.languageCode,
+        text: 'text',
+        speechEndedAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+      });
+    }
+
+    test('is translating while the other person’s newest sentence has no translation yet', () => {
+      let state = addFinalCaption(createStateInRoomAsAsha(), 'utterance-1', BEN);
+      expect(isWaitingForTranslation(state.captions, 'hi')).toBe(true);
+
+      state = reduceConversation(state, {
+        type: 'translation_complete',
+        utteranceId: 'utterance-1',
+        targetLanguageCode: 'hi',
+        text: 'पाठ',
+        timings: {
+          speechEndedAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+          transcriptFinalAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+          firstTranslationDeltaAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+          translationCompleteAtEpochMilliseconds: SPEECH_ENDED_AT_EPOCH_MILLISECONDS,
+        },
+      });
+      expect(isWaitingForTranslation(state.captions, 'hi')).toBe(false);
+
+      // This phone's own sentence is translated for the other phone, not this one.
+      state = addFinalCaption(state, 'utterance-2', ASHA);
+      expect(isWaitingForTranslation(state.captions, 'hi')).toBe(false);
+    });
+
+    test('rejoining after a dropped socket marks translations that never came as failed', () => {
+      let state = addFinalCaption(createStateInRoomAsAsha(), 'utterance-1', BEN);
+      state = addFinalCaption(state, 'utterance-2', ASHA);
+
+      state = reduceConversation(state, {
+        type: 'room_joined',
+        roomCode: 'K7MQ2X',
+        participantId: ASHA.participantId,
+      });
+
+      expect(state.captions.map((caption) => caption.hasTranslationFailed)).toEqual([true, false]);
+      expect(state.room?.participants).toEqual([ASHA, BEN]);
+      expect(isWaitingForTranslation(state.captions, 'hi')).toBe(false);
     });
 
     test('remembers who left until someone joins again', () => {
