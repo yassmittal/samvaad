@@ -71,7 +71,7 @@ cd samvaad
 
 `--filter` installs only the API and `packages/shared`, not Next.js.
 
-- [ ] The install ends without an error.
+- [X] The install ends without an error. *(1 Nov: the API runs from it.)*
 
 ## 4. The API's `.env` on the server
 
@@ -93,8 +93,9 @@ Set these values. Every other line stays as in `.env.example`:
 chmod 600 .env
 ```
 
-- [ ] `grep -cE "^[A-Z_]+=" .env` prints the same number as for `.env.example`, so no variable is
-      missing.
+- [X] `grep -cE "^[A-Z_]+=" .env` prints the same number as for `.env.example`, so no variable is
+      missing. *(1 Nov: the API listens on 3030 and refuses a socket from any origin but
+      `https://samvaad.yashmittal.xyz`.)*
 
 ## 5. nginx and HTTPS
 
@@ -134,8 +135,11 @@ sudo certbot --nginx -d samvaad-api.yashmittal.xyz
 certbot adds the `listen 443 ssl` lines and the certificate to this file. Pick the HTTP → HTTPS
 redirect when it asks. It renews the certificate on its own.
 
-- [ ] `nginx -t` says `syntax is ok` and `test is successful`.
-- [ ] certbot ends with `Successfully deployed certificate`.
+- [X] `sudo nginx -t` says `syntax is ok` and `test is successful`. (Always with `sudo`: without
+      it nginx can't read the certificates and fails with `cannot load certificate … Permission
+      denied`. The `conflicting server name "mcp.redsentinel.xyz"` warning is older and not
+      Samvaad's.)
+- [X] certbot ends with `Successfully deployed certificate`. *(1 Nov.)*
 
 ## 6. Start it with PM2
 
@@ -146,11 +150,11 @@ pm2 save
 pm2 logs samvaad-api --lines 30
 ```
 
-- [ ] `pm2 list` shows `samvaad-api` **online**, and its ↺ count stays at 0 over a minute.
-- [ ] `pm2 describe samvaad-api | grep "script path"` shows `.bun-1.4.2/bin/bun`.
-- [ ] The logs show `"msg":"Server listening at http://127.0.0.1:3030"` and no error.
-- [ ] `curl -s http://127.0.0.1:3030/health` on the server prints `{"status":"ok"}`.
-- [ ] From your Mac: `curl -s https://samvaad-api.yashmittal.xyz/health` gives the same answer.
+- [X] `pm2 list` shows `samvaad-api` **online**, and its ↺ count stays at 0 over a minute.
+- [X] `pm2 describe samvaad-api | grep "script path"` shows `.bun-1.4.2/bin/bun`.
+- [X] The logs show `"msg":"Server listening at http://127.0.0.1:3030"` and no error.
+- [X] `curl -s http://127.0.0.1:3030/health` on the server prints `{"status":"ok"}`.
+- [X] From your Mac: `curl -s https://samvaad-api.yashmittal.xyz/health` gives the same answer.
 
 If it shows `errored`, the first log lines name the missing or wrong `.env` variable.
 
@@ -169,14 +173,15 @@ vercel.com → **Add New… → Project** → import the Samvaad repository:
 `NEXT_PUBLIC_*` values are built into the page, so set it **before** the first deploy (or redeploy
 after adding it). Deploy, then **Settings → Domains → Add** `samvaad.yashmittal.xyz`.
 
-- [ ] The `….vercel.app` address loads the home page.
-- [ ] `https://samvaad.yashmittal.xyz` loads with a valid certificate. If it hasn't come 20 minutes
+- [X] The `….vercel.app` address loads the home page. *(1 Nov: `https://samvaad-three.vercel.app`.)*
+- [X] `https://samvaad.yashmittal.xyz` loads with a valid certificate. If it hasn't come 20 minutes
       later: `vercel certs issue samvaad.yashmittal.xyz`.
-- [ ] The home page's status panel says **Server ok** ("Ready to translate"). While it checks, it
-      shows the URL it calls: `https://samvaad-api.yashmittal.xyz`.
+- [X] The home page's status panel says **Server ok** ("Ready to translate"). While it checks, it
+      shows the URL it calls: `https://samvaad-api.yashmittal.xyz`. *(1 Nov, checked headless.)*
 
-Preview deploys (`….vercel.app`) load, but their rooms are refused: only the real domain is in
-`ALLOWED_WEB_ORIGINS`.
+Preview deploys (`….vercel.app`) load, but their status panel says **Server unreachable** and
+their rooms are refused: only the real domain is in `ALLOWED_WEB_ORIGINS`. That's expected. Always
+use `https://samvaad.yashmittal.xyz`.
 
 ## 8. On the phone, on mobile data
 
