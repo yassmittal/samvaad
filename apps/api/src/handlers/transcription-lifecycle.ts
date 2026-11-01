@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { findLanguageBias } from '../lib/find-language-bias';
-import { createUtteranceTracker } from '../lib/utterance-tracker';
+import { findTranscriptionKeywords, haveSameKeywords } from '../lib/find-transcription-keywords';
+import { createUtteranceTracker, type UtteranceTracker } from '../lib/utterance-tracker';
 import {
   createMetaTranscriptionStream,
   type MetaTranscriptionStream,
@@ -12,7 +13,19 @@ import { startUtteranceTranslations } from './translate-utterance';
 // Meta caps a session at 60 minutes (D-005). Hand over to a fresh stream well before that.
 export const TRANSCRIPTION_STREAM_ROTATION_MILLISECONDS = 55 * 60 * 1000;
 
-function openTranscriptionStream(connection: ConversationConnection): MetaTranscriptionStream {
+// Each stream's tracker, so a glossary change can wait until its speaker is between utterances.
+const utteranceTrackersByStream = new WeakMap<MetaTranscriptionStream, UtteranceTracker>();
+
+function findCurrentKeywords(connection: ConversationConnection): string[] {
+  return connection.membership
+    ? findTranscriptionKeywords(connection.membership.room.context.glossaryTerms)
+    : [];
+}
+
+function openTranscriptionStream(
+  connection: ConversationConnection,
+  keywords: string[],
+): MetaTranscriptionStream {
   // One tracker per stream: after a rotation, the old stream still finishes its own utterance.
   const utteranceTracker = createUtteranceTracker({ createUtteranceId: randomUUID });
 
@@ -22,6 +35,7 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
     languageBias: connection.membership
       ? findLanguageBias(connection.membership.languageCodes)
       : [],
+    keywords,
     logger: connection.logger,
     callbacks: {
       onSpeechStarted(turnId) {
@@ -40,6 +54,7 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
       },
       onFinalTranscript(turnId, text) {
         const utterance = utteranceTracker.finishUtterance(turnId);
+        refreshKeywordsIfPending(connection, stream);
         const { membership } = connection;
         if (text.trim().length === 0 || membership === null) {
           return;
@@ -83,26 +98,68 @@ function openTranscriptionStream(connection: ConversationConnection): MetaTransc
     },
   });
 
+  utteranceTrackersByStream.set(stream, utteranceTracker);
   connection.openTranscriptionStreams.add(stream);
   return stream;
 }
 
 export function startTranscription(connection: ConversationConnection): void {
-  const stream = openTranscriptionStream(connection);
+  const keywords = findCurrentKeywords(connection);
+  const stream = openTranscriptionStream(connection, keywords);
   const rotationTimeout = setTimeout(() => {
+    connection.logger.info('rotating the transcription stream before the 60-minute cap');
     rotateTranscription(connection);
   }, TRANSCRIPTION_STREAM_ROTATION_MILLISECONDS);
-  connection.activeTranscription = { stream, rotationTimeout };
+  connection.activeTranscription = {
+    stream,
+    keywords,
+    rotationTimeout,
+    isKeywordRefreshPending: false,
+  };
 }
 
+/** Hands over to a fresh stream; the old one finishes its own utterance, then closes. */
 function rotateTranscription(connection: ConversationConnection): void {
   if (!connection.activeTranscription) {
     return;
   }
-  connection.logger.info('rotating the transcription stream before the 60-minute cap');
-  const previousStream = connection.activeTranscription.stream;
+  const previousTranscription = connection.activeTranscription;
+  clearTimeout(previousTranscription.rotationTimeout);
   startTranscription(connection);
-  previousStream.end();
+  previousTranscription.stream.end();
+}
+
+function refreshKeywordsIfPending(
+  connection: ConversationConnection,
+  stream: MetaTranscriptionStream,
+): void {
+  const { activeTranscription } = connection;
+  if (activeTranscription?.stream !== stream || !activeTranscription.isKeywordRefreshPending) {
+    return;
+  }
+  if (utteranceTrackersByStream.get(stream)?.hasUtteranceInProgress()) {
+    return;
+  }
+  connection.logger.info('glossary changed: replacing the transcription stream between utterances');
+  rotateTranscription(connection);
+}
+
+/**
+ * The glossary changed. Keywords are fixed at Meta's handshake (D-005), so an open stream is
+ * replaced, but never mid-utterance: at once if the speaker is between utterances, otherwise
+ * after the current one's final transcript (D-016). A closed mic picks them up when it opens.
+ */
+export function refreshTranscriptionKeywords(connection: ConversationConnection): void {
+  const { activeTranscription } = connection;
+  if (!activeTranscription) {
+    return;
+  }
+  if (haveSameKeywords(activeTranscription.keywords, findCurrentKeywords(connection))) {
+    activeTranscription.isKeywordRefreshPending = false;
+    return;
+  }
+  activeTranscription.isKeywordRefreshPending = true;
+  refreshKeywordsIfPending(connection, activeTranscription.stream);
 }
 
 /** Mic off: Meta finishes the utterance in progress, then the stream closes (D-005). */

@@ -45,4 +45,15 @@ describe('createUtteranceTracker', () => {
 
     expect(tracker.findCurrentUtterance().utteranceId).toBe(earlyUtterance.utteranceId);
   });
+
+  test('knows when an utterance is in progress, for a glossary change (D-016)', () => {
+    const tracker = createTrackerWithCountingIds();
+    expect(tracker.hasUtteranceInProgress()).toBe(false);
+
+    tracker.startUtterance(0);
+    expect(tracker.hasUtteranceInProgress()).toBe(true);
+
+    tracker.finishUtterance(0);
+    expect(tracker.hasUtteranceInProgress()).toBe(false);
+  });
 });

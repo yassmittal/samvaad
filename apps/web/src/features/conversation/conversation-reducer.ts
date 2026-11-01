@@ -1,4 +1,11 @@
-import type { ErrorCode, LanguageCode, RoomParticipant, ServerMessage } from '@samvaad/shared';
+import {
+  type ConversationContext,
+  EMPTY_CONVERSATION_CONTEXT,
+  type ErrorCode,
+  type LanguageCode,
+  type RoomParticipant,
+  type ServerMessage,
+} from '@samvaad/shared';
 
 export type CaptionTranslation = {
   targetLanguageCode: LanguageCode;
@@ -32,6 +39,14 @@ export type ConversationRoomState = {
   participants: RoomParticipant[];
 };
 
+/** After someone ends the conversation: the recap in each language this phone listens in (D-016). */
+export type ConversationRecap = {
+  /** `null` at a table. */
+  endedByParticipantName: string | null;
+  recapTextsByLanguageCode: Partial<Record<LanguageCode, string>>;
+  hasFailed: boolean;
+};
+
 export type ConversationState = {
   participantId: string | null;
   /** `null` in table mode, and until the API answers `create_room` or `join_room`. */
@@ -40,6 +55,12 @@ export type ConversationState = {
   departedParticipantName: string | null;
   captions: Caption[];
   latestError: { code: ErrorCode; message: string } | null;
+  /** The room's setting and glossary, as the API last told this phone (D-016). */
+  conversationContext: ConversationContext;
+  /** Who changed the context last, while this phone has been here. */
+  contextUpdatedByParticipantName: string | null;
+  /** `null` until someone ends the conversation, and again after "Back to the conversation". */
+  recap: ConversationRecap | null;
 };
 
 /** Not from the server: this phone started speaking an utterance's translation. */
@@ -49,7 +70,10 @@ export type PlaybackStartedEvent = {
   speechEndToPlaybackStartMilliseconds: number;
 };
 
-export type ConversationEvent = ServerMessage | PlaybackStartedEvent;
+/** Not from the server: this phone went back from the recap to the conversation. */
+export type RecapDismissedEvent = { type: 'recap_dismissed' };
+
+export type ConversationEvent = ServerMessage | PlaybackStartedEvent | RecapDismissedEvent;
 
 export const INITIAL_CONVERSATION_STATE: ConversationState = {
   participantId: null,
@@ -57,7 +81,14 @@ export const INITIAL_CONVERSATION_STATE: ConversationState = {
   departedParticipantName: null,
   captions: [],
   latestError: null,
+  conversationContext: EMPTY_CONVERSATION_CONTEXT,
+  contextUpdatedByParticipantName: null,
+  recap: null,
 };
+
+function startRecap(endedByParticipantName: string | null): ConversationRecap {
+  return { endedByParticipantName, recapTextsByLanguageCode: {}, hasFailed: false };
+}
 
 type TranscriptUpdate = Pick<
   Caption,
@@ -188,10 +219,42 @@ export function reduceConversation(
         ),
       };
 
+    case 'conversation_context':
+      return {
+        ...state,
+        conversationContext: { setting: event.setting, glossaryTerms: event.glossaryTerms },
+        contextUpdatedByParticipantName:
+          event.updatedByParticipantName ?? state.contextUpdatedByParticipantName,
+      };
+
+    case 'conversation_ended':
+      return { ...state, recap: startRecap(event.participantName) };
+
+    case 'conversation_recap': {
+      const recap = state.recap ?? startRecap(null);
+      return {
+        ...state,
+        recap: {
+          ...recap,
+          recapTextsByLanguageCode: {
+            ...recap.recapTextsByLanguageCode,
+            [event.languageCode]: event.text,
+          },
+        },
+      };
+    }
+
+    case 'recap_dismissed':
+      return { ...state, recap: null };
+
     case 'error': {
       // Frames still in flight when the mic closes; expected and harmless.
       if (event.code === 'MICROPHONE_NOT_OPEN') {
         return state;
+      }
+      // A recap that couldn't be written belongs on the recap screen, if it's open.
+      if (event.code === 'RECAP_UNAVAILABLE' && state.recap !== null) {
+        return { ...state, recap: { ...state.recap, hasFailed: true } };
       }
       // A problem with one utterance belongs on its bubble, not in the status line.
       const { utteranceId } = event;

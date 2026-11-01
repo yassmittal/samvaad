@@ -1,6 +1,10 @@
 'use client';
 
-import type { ServerMessage, TranslationCompleteMessage } from '@samvaad/shared';
+import type {
+  ConversationContext,
+  ServerMessage,
+  TranslationCompleteMessage,
+} from '@samvaad/shared';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { webEnv } from '@/config/env';
 import {
@@ -121,6 +125,10 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
     if (message.type === 'error' && message.code === 'UPSTREAM_UNAVAILABLE') {
       closeMicrophoneRef.current();
     }
+    // Someone ended the conversation, here or on the other phone: stop listening (D-016).
+    if (message.type === 'conversation_ended') {
+      closeMicrophoneRef.current();
+    }
     // Only translations meant for this phone arrive, in this phone's language(s).
     if (message.type === 'translation_complete') {
       const wasQueued = speakRef.current({
@@ -198,6 +206,20 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
     [conversation.captions, speechOutput.speak],
   );
 
+  /** Applies to the whole room, from the next utterance translated (D-016). */
+  const updateConversationContext = useCallback((context: ConversationContext) => {
+    socketClientRef.current?.sendClientMessage({ type: 'update_conversation_context', ...context });
+  }, []);
+
+  /** Ends it for everyone in the room; the recaps follow (D-016). */
+  const endConversation = useCallback(() => {
+    socketClientRef.current?.sendClientMessage({ type: 'end_conversation' });
+  }, []);
+
+  const dismissRecap = useCallback(() => {
+    dispatchConversationEvent({ type: 'recap_dismissed' });
+  }, []);
+
   const retryConnection = useCallback(() => {
     socketClientRef.current?.reconnect();
   }, []);
@@ -212,6 +234,9 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
     closeMicrophone,
     toggleMicrophone,
     repeatTranslation,
+    updateConversationContext,
+    endConversation,
+    dismissRecap,
     retryConnection,
   };
 }

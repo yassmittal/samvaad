@@ -2,11 +2,13 @@ import { clientMessageSchema } from '@samvaad/shared';
 import { findErrorCodeForInvalidMessage } from '../lib/find-error-code-for-invalid-message';
 import type { ConversationConnection } from './conversation-connection';
 import { handleCreateRoom } from './handle-create-room';
+import { handleEndConversation } from './handle-end-conversation';
 import { handleJoinRoom } from './handle-join-room';
 import { handleLeaveRoom } from './handle-leave-room';
 import { handleMicrophoneState } from './handle-microphone-state';
 import { handlePlaybackStarted } from './handle-playback-started';
 import { handleStartTableSession } from './handle-start-table-session';
+import { handleUpdateConversationContext } from './handle-update-conversation-context';
 
 /** Parses one JSON text frame with the shared schema and hands it to its handler. */
 export function handleClientMessage(connection: ConversationConnection, messageText: string): void {
@@ -52,6 +54,13 @@ export function handleClientMessage(connection: ConversationConnection, messageT
       return;
     case 'playback_started':
       handlePlaybackStarted(connection, message);
+      return;
+    case 'update_conversation_context':
+      handleUpdateConversationContext(connection, message);
+      return;
+    case 'end_conversation':
+      // Never rejects: a failed recap becomes an error message to its listeners.
+      void handleEndConversation(connection);
       return;
   }
 }

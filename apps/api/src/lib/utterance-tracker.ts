@@ -45,6 +45,11 @@ export function createUtteranceTracker({ createUtteranceId }: { createUtteranceI
       findOrCreateUtterance(turnId).speechEndedAtEpochMilliseconds = speechEndedAtEpochMilliseconds;
     },
 
+    /** Someone is mid-utterance: Meta has heard speech whose final transcript hasn't come. */
+    hasUtteranceInProgress(): boolean {
+      return utterancesByTurnId.size > 0;
+    },
+
     /** Removes the utterance for `turnId` and returns it, for its final transcript. */
     finishUtterance(turnId: number): TrackedUtterance {
       const utterance = findOrCreateUtterance(turnId);

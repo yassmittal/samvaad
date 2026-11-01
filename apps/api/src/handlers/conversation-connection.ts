@@ -16,7 +16,11 @@ import {
 
 export type ActiveTranscription = {
   stream: MetaTranscriptionStream;
+  /** The keywords its handshake carried; fixed for the stream's life (D-005). */
+  keywords: string[];
   rotationTimeout: ReturnType<typeof setTimeout>;
+  /** The glossary changed mid-utterance: replace the stream once that utterance is final (D-016). */
+  isKeywordRefreshPending: boolean;
 };
 
 export type ConversationRoom = Room<ConversationConnection>;

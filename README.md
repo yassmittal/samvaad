@@ -8,8 +8,9 @@ and **Muse Spark** (context-aware translation).
 - [`MVP.md`](MVP.md): what it is and why.
 - [`docs/`](docs/README.md): architecture, decisions, coding standards and the phased plan.
 
-> Status: Phases 0 to 2 done: table mode with live captions and streamed translation.
-> Phase 3 (speaking the translation) is next. See [`docs/README.md`](docs/README.md).
+> Status: Phases 0 to 5 built: table mode, two-phone rooms, context-aware translation and the
+> end-of-conversation recap. Phase 6 (hosting and submission) is next. See
+> [`docs/README.md`](docs/README.md).
 
 ## Layout
 
@@ -75,6 +76,32 @@ bun run smoke:transcribe --keyword "Blue Pottery" --keyword Jaipur --verbose
 
 The fixtures in `scripts/fixtures/` are placeholders made with macOS voices. See the
 [README there](scripts/fixtures/README.md) to swap in real recordings.
+
+## Why context matters (Phase 5)
+
+Muse Spark translates each sentence knowing the setting, a glossary of names and terms, and
+the last eight sentences (D-016). `compare:context` translates the scripted demo conversation
+(a Jaipur blue pottery exporter speaking Hindi, a London buyer speaking English) twice, with
+the plain Phase 4 prompt and with context, and prints both. It makes 20 Muse Spark calls, 22
+with `--recap`.
+
+```sh
+bun run compare:context              # side by side, with time to the first word
+bun run compare:context --markdown   # as a table
+bun run compare:context --recap      # plus the recap in Hindi and English
+```
+
+From one run (30 Oct 2026, `muse-spark-1.3`):
+
+| Said | Without context | With context |
+|------|-----------------|--------------|
+| नमस्ते शिवॉन जी … हमारी ब्लू पाचरी की नई रेंज तैयार है। (the transcriber misheard "blue pottery") | Hello Shivan ji … Our new range of blue pachari is ready. | Hello Ms. Siobhan … Our new range of blue pottery is ready. |
+| जी, बड़ी थाली हमारा सबसे ज़्यादा बिकने वाला पीस है … | Yes, the large thali is our best-selling piece … | Yes, the large platter is our best-selling piece … |
+| Could you do four twenty-five if I take three hundred? | क्या आप four twenty-five कर देंगे अगर मैं three hundred लूँ? | अगर मैं तीन सौ लूँ तो क्या आप चार सौ पच्चीस कर देंगे? |
+| Please send the invoice to Siobhan Doyle at Doyle Home, and I'll pay thirty percent upfront. | कृपया invoice Siobhan Doyle को Doyle Home पर भेज दीजिए, और मैं thirty percent upfront pay करूंगा। | कृपया इनवॉइस डॉयल होम में शिवॉन डॉयल को भेज दीजिए, और मैं तीस प्रतिशत एडवांस में पे कर दूँगी। |
+
+The last row also shows the speaker's name at work: Hindi verbs agree with the speaker's
+gender, and with context Siobhan says "दूँगी".
 
 ## Checks
 

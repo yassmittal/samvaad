@@ -3,20 +3,27 @@ import { parseServerSentEvents } from '../lib/parse-server-sent-events';
 
 const STREAM_DONE_MARKER = '[DONE]';
 // Muse Spark always reasons; "minimal" is the least it allows and measured fastest (D-014).
-const REASONING_EFFORT = 'minimal';
+const TRANSLATION_REASONING_EFFORT = 'minimal';
+// Nobody is waiting word by word for a recap, and it has a whole conversation to weigh (D-016).
+const RECAP_REASONING_EFFORT = 'low';
 export const TRANSLATION_TIMEOUT_MILLISECONDS = 10_000;
+export const RECAP_TIMEOUT_MILLISECONDS = 45_000;
 
 type ChatCompletionChunk = {
   choices?: { delta?: { content?: string | null } }[];
 };
 
+type ReasoningEffort = typeof TRANSLATION_REASONING_EFFORT | typeof RECAP_REASONING_EFFORT;
+
 type MetaTranslationClientOptions = {
   chatCompletionsUrl: string;
   modelId: string;
   metaApiKey: string;
-  logger: FastifyBaseLogger;
-  /** Tests shorten it. */
+  /** Only the warm-up logs, so the comparison script can pass a stand-in. */
+  logger: Pick<FastifyBaseLogger, 'debug'>;
+  /** Tests shorten them. */
   timeoutMilliseconds?: number;
+  recapTimeoutMilliseconds?: number;
 };
 
 type StreamTranslationInput = {
@@ -24,6 +31,20 @@ type StreamTranslationInput = {
   utteranceText: string;
   /** Aborts the request, for example when the browser disconnects. */
   signal: AbortSignal;
+};
+
+type WriteRecapInput = {
+  systemPrompt: string;
+  conversationText: string;
+};
+
+type ChatCompletionInput = {
+  systemPrompt: string;
+  userText: string;
+  reasoningEffort: ReasoningEffort;
+  /** Cancels the request early; the timeout applies either way. */
+  signal?: AbortSignal;
+  timeoutMilliseconds: number;
 };
 
 export class TranslationFailedError extends Error {
@@ -37,65 +58,97 @@ export function createMetaTranslationClient({
   metaApiKey,
   logger,
   timeoutMilliseconds = TRANSLATION_TIMEOUT_MILLISECONDS,
+  recapTimeoutMilliseconds = RECAP_TIMEOUT_MILLISECONDS,
 }: MetaTranslationClientOptions) {
   const authorizationHeaders = { Authorization: `Bearer ${metaApiKey}` };
 
+  /** Yields the answer's text as it arrives. Throws `TranslationFailedError`. */
+  async function* streamChatCompletion({
+    systemPrompt,
+    userText,
+    reasoningEffort,
+    signal,
+    timeoutMilliseconds: requestTimeoutMilliseconds,
+  }: ChatCompletionInput): AsyncGenerator<string> {
+    const timeoutSignal = AbortSignal.timeout(requestTimeoutMilliseconds);
+    let response: Response;
+    try {
+      response = await fetch(chatCompletionsUrl, {
+        method: 'POST',
+        headers: { ...authorizationHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelId,
+          stream: true,
+          reasoning_effort: reasoningEffort,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText },
+          ],
+        }),
+        signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+      });
+    } catch (error) {
+      throw new TranslationFailedError(`request failed: ${String(error)}`);
+    }
+
+    if (!response.ok || response.body === null) {
+      const responseText = await response.text().catch(() => '');
+      throw new TranslationFailedError(`HTTP ${response.status}: ${responseText.slice(0, 300)}`);
+    }
+
+    const textDecoder = new TextDecoder();
+    let bufferedText = '';
+    try {
+      for await (const networkChunk of response.body) {
+        bufferedText += textDecoder.decode(networkChunk, { stream: true });
+        const { dataPayloads, remainingText } = parseServerSentEvents(bufferedText);
+        bufferedText = remainingText;
+
+        for (const dataPayload of dataPayloads) {
+          if (dataPayload === STREAM_DONE_MARKER) {
+            return;
+          }
+          const chunk = JSON.parse(dataPayload) as ChatCompletionChunk;
+          // The final chunks carry `finish_reason` and `usage` with null or no content.
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (typeof content === 'string' && content.length > 0) {
+            yield content;
+          }
+        }
+      }
+    } catch (error) {
+      throw new TranslationFailedError(`stream broke: ${String(error)}`);
+    }
+  }
+
   return {
     /** Yields the translation's text as it arrives. Throws `TranslationFailedError`. */
-    async *streamTranslation({
+    streamTranslation({
       systemPrompt,
       utteranceText,
       signal,
     }: StreamTranslationInput): AsyncGenerator<string> {
-      const timeoutSignal = AbortSignal.timeout(timeoutMilliseconds);
-      let response: Response;
-      try {
-        response = await fetch(chatCompletionsUrl, {
-          method: 'POST',
-          headers: { ...authorizationHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: modelId,
-            stream: true,
-            reasoning_effort: REASONING_EFFORT,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: utteranceText },
-            ],
-          }),
-          signal: AbortSignal.any([signal, timeoutSignal]),
-        });
-      } catch (error) {
-        throw new TranslationFailedError(`request failed: ${String(error)}`);
-      }
+      return streamChatCompletion({
+        systemPrompt,
+        userText: utteranceText,
+        reasoningEffort: TRANSLATION_REASONING_EFFORT,
+        signal,
+        timeoutMilliseconds,
+      });
+    },
 
-      if (!response.ok || response.body === null) {
-        const responseText = await response.text().catch(() => '');
-        throw new TranslationFailedError(`HTTP ${response.status}: ${responseText.slice(0, 300)}`);
+    /** The whole recap at once (D-016). Throws `TranslationFailedError`. */
+    async writeRecap({ systemPrompt, conversationText }: WriteRecapInput): Promise<string> {
+      let recapText = '';
+      for await (const textDelta of streamChatCompletion({
+        systemPrompt,
+        userText: conversationText,
+        reasoningEffort: RECAP_REASONING_EFFORT,
+        timeoutMilliseconds: recapTimeoutMilliseconds,
+      })) {
+        recapText += textDelta;
       }
-
-      const textDecoder = new TextDecoder();
-      let bufferedText = '';
-      try {
-        for await (const networkChunk of response.body) {
-          bufferedText += textDecoder.decode(networkChunk, { stream: true });
-          const { dataPayloads, remainingText } = parseServerSentEvents(bufferedText);
-          bufferedText = remainingText;
-
-          for (const dataPayload of dataPayloads) {
-            if (dataPayload === STREAM_DONE_MARKER) {
-              return;
-            }
-            const chunk = JSON.parse(dataPayload) as ChatCompletionChunk;
-            // The final chunks carry `finish_reason` and `usage` with null or no content.
-            const content = chunk.choices?.[0]?.delta?.content;
-            if (typeof content === 'string' && content.length > 0) {
-              yield content;
-            }
-          }
-        }
-      } catch (error) {
-        throw new TranslationFailedError(`stream broke: ${String(error)}`);
-      }
+      return recapText.trim();
     },
 
     /**

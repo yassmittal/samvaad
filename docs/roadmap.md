@@ -59,7 +59,7 @@ recap). Phase 7 is the first thing to drop, then Phase 6's polish.
 | Product name | Phase 0 (it's the package scope) | Samvaad |
 | The demo language pair | Phase 1 | Hindi ↔ English (both validated by Muse Voice Transcribe) |
 | Is the MVP's "median under 2.5 s" still the bar, now that Muse Spark needs ~1 s to its first word (D-014)? | Phase 2 | Keep 2.5 s as the goal; decide after Phase 2 measures real conversations |
-| The demo story: who is talking to whom | Phase 5 (glossary and recap are shaped by it) | A Jaipur handicraft exporter (Hindi) and a foreign buyer (English) agreeing an order: product names, quantities, prices |
+| The demo story: who is talking to whom | Phase 5 (glossary and recap are shaped by it) | **Answered (Yash, 30 Oct):** the default. Ramesh Kumawat, a Jaipur blue pottery exporter (Hindi), and Siobhan Doyle of Doyle Home, London (English), agree an order (phase 5 spec) |
 | Is the Meta API key and $150 credit claimed and working? | Phase 0 | **Answered (29 Oct):** the key works; both smoke scripts ran |
 | Where the API runs | Phase 6 | Yash's EC2 instance under PM2, behind TLS, as StrideMon does (D-010) |
 | A better voice than the browser's | Phase 7 | Stay on browser `speechSynthesis` |

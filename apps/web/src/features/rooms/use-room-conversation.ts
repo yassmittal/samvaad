@@ -1,6 +1,11 @@
 'use client';
 
-import type { ClientMessage, ErrorCode } from '@samvaad/shared';
+import {
+  type ClientMessage,
+  type ConversationContext,
+  type ErrorCode,
+  isConversationContextEmpty,
+} from '@samvaad/shared';
 import { useCallback, useRef, useState } from 'react';
 import { useConversation } from '../conversation/use-conversation';
 import { unlockSpeech } from '../speech-output/unlock-speech';
@@ -28,17 +33,25 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
   const [roomEntry, setRoomEntry] = useState<RoomEntry | null>(null);
   const [joinFailureCode, setJoinFailureCode] = useState<RoomJoinFailureCode | null>(null);
   const roomEntryRef = useRef<RoomEntry | null>(null);
+  // What the creator filled in on the form; the room gets it once it exists (D-016).
+  const initialContextRef = useRef<ConversationContext | null>(null);
   // Set once the API answers, so a creator who reconnects rejoins their room, not a new one.
   const joinedRoomCodeRef = useRef<string | null>(null);
 
   const sendEntryMessage = useCallback(
     (sendClientMessage: (message: ClientMessage) => void, entry: RoomEntry) => {
       const roomCode = joinedRoomCodeRef.current ?? requestedRoomCode;
-      sendClientMessage(
-        roomCode === null
-          ? { type: 'create_room', ...entry }
-          : { type: 'join_room', roomCode, ...entry },
-      );
+      if (roomCode !== null) {
+        // A room someone is still in keeps its context; rejoining doesn't resend ours.
+        sendClientMessage({ type: 'join_room', roomCode, ...entry });
+        return;
+      }
+      sendClientMessage({ type: 'create_room', ...entry });
+      const initialContext = initialContextRef.current;
+      // Messages on one socket arrive in order, so the room exists by the time this does.
+      if (initialContext !== null && !isConversationContextEmpty(initialContext)) {
+        sendClientMessage({ type: 'update_conversation_context', ...initialContext });
+      }
     },
     [requestedRoomCode],
   );
@@ -70,11 +83,12 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
   });
 
   const enterRoom = useCallback(
-    (entry: RoomEntry) => {
+    (entry: RoomEntry, initialContext: ConversationContext | null) => {
       // Joining is the first tap, and iOS only lets a page speak after one (D-007).
       unlockSpeech();
       rememberRoomEntry(entry);
       roomEntryRef.current = entry;
+      initialContextRef.current = initialContext;
       setRoomEntry(entry);
       // Dropped if the socket isn't open yet; `onSocketOpen` sends it then.
       sendEntryMessage(sendClientMessage, entry);
@@ -105,6 +119,9 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
     departedParticipantName: conversation.departedParticipantName,
     captions: conversation.captions,
     latestError: conversation.latestError,
+    conversationContext: conversation.conversationContext,
+    contextUpdatedByParticipantName: conversation.contextUpdatedByParticipantName,
+    recap: conversation.recap,
     languageCode: roomEntry?.languageCode ?? null,
     enterRoom,
     leaveRoom,

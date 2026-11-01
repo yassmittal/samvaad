@@ -16,6 +16,7 @@ hackathon-project/
 ├── scripts/
 │   ├── smoke-transcribe.ts         Phase 0: WAV file → Muse Voice Transcribe → print
 │   ├── smoke-translate.ts          Phase 0: text → Muse Spark → print
+│   ├── compare-translation-context.ts  Phase 5: the demo conversation with and without context
 │   └── fixtures/                   short test recordings (our own voices)
 ├── packages/
 │   └── shared/src/
@@ -28,7 +29,9 @@ hackathon-project/
 │       │   └── audio-format.ts     SAMPLE_RATE_HERTZ, FRAME_DURATION_MILLISECONDS, …
 │       └── domain/
 │           ├── error-code.ts       the ErrorCode union
-│           └── room-code.ts        room code alphabet, length and schema (Phase 4)
+│           ├── room-code.ts        room code alphabet, length and schema (Phase 4)
+│           ├── conversation-context.ts      setting and glossary schema (Phase 5)
+│           └── demo-conversation-preset.ts  the demo story's context (Phase 5)
 ├── apps/
 │   ├── api/src/
 │   │   ├── index.ts                starts the server
@@ -57,7 +60,9 @@ hackathon-project/
 │           │   ├── microphone/     capture, resample, PCM16 encode, mute
 │           │   ├── conversation/   caption list, latency meter
 │           │   ├── speech-output/  speechSynthesis queue, voice picking, iOS unlock
-│           │   └── rooms/          create, join, QR code
+│           │   ├── rooms/          create, join, QR code
+│           │   ├── conversation-context/  the context editor and panel (Phase 5)
+│           │   └── recap/          End & recap, the recap screen (Phase 5)
 │           ├── components/ui/
 │           └── lib/
 │               └── conversation-socket/   the only place that opens the WebSocket

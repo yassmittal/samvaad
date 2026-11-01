@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { conversationContextSchema } from '../domain/conversation-context';
 import { errorCodeSchema } from '../domain/error-code';
 import { roomCodeSchema } from '../domain/room-code';
 import { languageCodeSchema } from '../languages/supported-languages';
@@ -85,6 +86,28 @@ export const translationCompleteMessageSchema = z.object({
   timings: utteranceTimingsSchema,
 });
 
+/** The room's setting and glossary (D-016). To everyone on every change, and to a phone that joins. */
+export const conversationContextMessageSchema = z.object({
+  type: z.literal('conversation_context'),
+  ...conversationContextSchema.shape,
+  /** Who changed it just now. `null` when it is sent to a phone joining, and at a table. */
+  updatedByParticipantName: z.string().nullable(),
+});
+
+/** Someone ended the conversation. Every phone closes its mic; the recaps follow (D-016). */
+export const conversationEndedMessageSchema = z.object({
+  type: z.literal('conversation_ended'),
+  /** `null` at a table. */
+  participantName: z.string().nullable(),
+});
+
+/** The end-of-conversation recap in one language, to the participants listening in it. */
+export const conversationRecapMessageSchema = z.object({
+  type: z.literal('conversation_recap'),
+  languageCode: languageCodeSchema,
+  text: z.string(),
+});
+
 export const errorMessageSchema = z.object({
   type: z.literal('error'),
   code: errorCodeSchema,
@@ -102,6 +125,9 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
   transcriptFinalMessageSchema,
   translationDeltaMessageSchema,
   translationCompleteMessageSchema,
+  conversationContextMessageSchema,
+  conversationEndedMessageSchema,
+  conversationRecapMessageSchema,
   errorMessageSchema,
 ]);
 
@@ -115,5 +141,8 @@ export type TranscriptFinalMessage = z.infer<typeof transcriptFinalMessageSchema
 export type TranslationDeltaMessage = z.infer<typeof translationDeltaMessageSchema>;
 export type UtteranceTimings = z.infer<typeof utteranceTimingsSchema>;
 export type TranslationCompleteMessage = z.infer<typeof translationCompleteMessageSchema>;
+export type ConversationContextMessage = z.infer<typeof conversationContextMessageSchema>;
+export type ConversationEndedMessage = z.infer<typeof conversationEndedMessageSchema>;
+export type ConversationRecapMessage = z.infer<typeof conversationRecapMessageSchema>;
 export type ErrorMessage = z.infer<typeof errorMessageSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

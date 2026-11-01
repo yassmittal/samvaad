@@ -7,6 +7,12 @@ import { CaptionList } from '../conversation/caption-list';
 import { ConversationStatus } from '../conversation/conversation-status';
 import { LatencyMeter } from '../conversation/latency-meter';
 import { MicrophoneButton } from '../conversation/microphone-button';
+import {
+  ConversationContextChip,
+  ConversationContextPanel,
+} from '../conversation-context/conversation-context-panel';
+import { EndConversationButton } from '../recap/end-conversation-button';
+import { RecapView } from '../recap/recap-view';
 import { ParticipantList } from './participant-list';
 import { RoomEntryForm } from './room-entry-form';
 import { ShareRoomPanel } from './share-room-panel';
@@ -96,6 +102,9 @@ function RoomConversationInRoom({
     departedParticipantName,
     captions,
     latestError,
+    conversationContext,
+    contextUpdatedByParticipantName,
+    recap,
     languageCode,
     socketStatus,
     microphoneStatus,
@@ -103,15 +112,21 @@ function RoomConversationInRoom({
     hasVoiceForLanguage,
     toggleMicrophone,
     repeatTranslation,
+    updateConversationContext,
+    endConversation,
+    dismissRecap,
     retryConnection,
     leaveRoom,
   } = roomConversation;
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isContextOpen, setIsContextOpen] = useState(false);
   if (room === null || languageCode === null) {
     return null;
   }
   const isAlone = room.participants.length < 2;
   const language = SUPPORTED_LANGUAGE_BY_CODE[languageCode];
+  const isConnected = socketStatus === 'open';
+  const hasFinishedUtterance = captions.some((caption) => caption.isFinal);
 
   return (
     <main className="mx-auto flex h-dvh w-full max-w-xl flex-col">
@@ -127,6 +142,11 @@ function RoomConversationInRoom({
             >
               {room.roomCode}
             </button>
+            <ConversationContextChip
+              conversationContext={conversationContext}
+              isOpen={isContextOpen}
+              onToggle={() => setIsContextOpen((isOpen) => !isOpen)}
+            />
           </div>
           <LatencyMeter captions={captions} />
         </div>
@@ -146,49 +166,80 @@ function RoomConversationInRoom({
       </header>
 
       <section className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-        {(isAlone || isShareOpen) && <ShareRoomPanel roomCode={room.roomCode} />}
-        <CaptionList
-          captions={captions}
-          listenerLanguageCode={languageCode}
-          emptyStateText={`Tap the microphone and speak ${language.englishName}. The other phone hears it in their language, and you hear their replies in yours.`}
-          hasVoiceForLanguage={hasVoiceForLanguage}
-          onRepeat={repeatTranslation}
-        />
+        {recap !== null ? (
+          <RecapView
+            recap={recap}
+            languageCodes={[languageCode]}
+            isConnected={isConnected}
+            onRetry={endConversation}
+            onBack={dismissRecap}
+            onExit={leaveRoom}
+          />
+        ) : (
+          <>
+            {isContextOpen && (
+              <ConversationContextPanel
+                conversationContext={conversationContext}
+                contextUpdatedByParticipantName={contextUpdatedByParticipantName}
+                isSharedWithOthers
+                isDisabled={!isConnected}
+                onSave={updateConversationContext}
+                onClose={() => setIsContextOpen(false)}
+              />
+            )}
+            {(isAlone || isShareOpen) && <ShareRoomPanel roomCode={room.roomCode} />}
+            <CaptionList
+              captions={captions}
+              listenerLanguageCode={languageCode}
+              emptyStateText={`Tap the microphone and speak ${language.englishName}. The other phone hears it in their language, and you hear their replies in yours.`}
+              hasVoiceForLanguage={hasVoiceForLanguage}
+              onRepeat={repeatTranslation}
+            />
+          </>
+        )}
       </section>
 
-      <footer className="flex flex-col items-center gap-3 border-t border-stone-200 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-        <ConversationStatus
-          socketStatus={socketStatus}
-          microphoneStatus={microphoneStatus}
-          isSpeaking={isSpeaking}
-          latestError={latestError}
-        />
-        {socketStatus === 'closed' && (
-          <button
-            type="button"
-            onClick={retryConnection}
-            className="rounded-full bg-stone-200 px-4 py-1.5 text-sm font-medium hover:bg-stone-300"
-          >
-            Try again
-          </button>
-        )}
-        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
-          <span />
-          <MicrophoneButton
+      {recap === null && (
+        <footer className="flex flex-col items-center gap-3 border-t border-stone-200 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+          <ConversationStatus
+            socketStatus={socketStatus}
             microphoneStatus={microphoneStatus}
             isSpeaking={isSpeaking}
-            isDisabled={socketStatus !== 'open'}
-            onToggle={() => void toggleMicrophone()}
+            latestError={latestError}
           />
-          <Link
-            href="/"
-            onClick={leaveRoom}
-            className="justify-self-end rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 hover:bg-stone-100"
-          >
-            Leave
-          </Link>
-        </div>
-      </footer>
+          {socketStatus === 'closed' && (
+            <button
+              type="button"
+              onClick={retryConnection}
+              className="rounded-full bg-stone-200 px-4 py-1.5 text-sm font-medium hover:bg-stone-300"
+            >
+              Try again
+            </button>
+          )}
+          <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
+            <div className="justify-self-start">
+              <EndConversationButton
+                isDisabled={!isConnected || !hasFinishedUtterance}
+                isSharedWithOthers={!isAlone}
+                onEnd={endConversation}
+              />
+            </div>
+            <MicrophoneButton
+              microphoneStatus={microphoneStatus}
+              isSpeaking={isSpeaking}
+              isDisabled={!isConnected}
+              onToggle={() => void toggleMicrophone()}
+            />
+            <Link
+              href="/"
+              onClick={leaveRoom}
+              className="justify-self-end rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 hover:bg-stone-100"
+            >
+              Leave
+            </Link>
+          </div>
+        </footer>
+      )}
     </main>
   );
 }

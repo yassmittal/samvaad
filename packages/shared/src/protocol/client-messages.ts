@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { conversationContextSchema } from '../domain/conversation-context';
 import { roomCodeSchema } from '../domain/room-code';
 import { languageCodeSchema } from '../languages/supported-languages';
 
@@ -61,6 +62,20 @@ export const playbackStartedMessageSchema = z.object({
   startedAtEpochMilliseconds: z.number(),
 });
 
+/**
+ * Replaces the room's setting and glossary (D-016). Either participant may send it at any
+ * time; it applies from the next utterance translated.
+ */
+export const updateConversationContextMessageSchema = z.object({
+  type: z.literal('update_conversation_context'),
+  ...conversationContextSchema.shape,
+});
+
+/** Ends the conversation for everyone in the room and asks for the recap (D-016). */
+export const endConversationMessageSchema = z.object({
+  type: z.literal('end_conversation'),
+});
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
   startTableSessionMessageSchema,
   createRoomMessageSchema,
@@ -68,6 +83,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   leaveRoomMessageSchema,
   microphoneStateMessageSchema,
   playbackStartedMessageSchema,
+  updateConversationContextMessageSchema,
+  endConversationMessageSchema,
 ]);
 
 export type StartTableSessionMessage = z.infer<typeof startTableSessionMessageSchema>;
@@ -76,4 +93,8 @@ export type JoinRoomMessage = z.infer<typeof joinRoomMessageSchema>;
 export type LeaveRoomMessage = z.infer<typeof leaveRoomMessageSchema>;
 export type MicrophoneStateMessage = z.infer<typeof microphoneStateMessageSchema>;
 export type PlaybackStartedMessage = z.infer<typeof playbackStartedMessageSchema>;
+export type UpdateConversationContextMessage = z.infer<
+  typeof updateConversationContextMessageSchema
+>;
+export type EndConversationMessage = z.infer<typeof endConversationMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

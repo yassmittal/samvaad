@@ -246,3 +246,54 @@ describe('reduceConversation', () => {
     });
   });
 });
+
+describe('reduceConversation: context and recap (D-016)', () => {
+  test('keeps the context the API sends, and who changed it', () => {
+    const state = reduceConversation(INITIAL_CONVERSATION_STATE, {
+      type: 'conversation_context',
+      setting: 'An order of blue pottery.',
+      glossaryTerms: [{ term: 'Siobhan', preferredTranslation: 'शिवॉन' }],
+      updatedByParticipantName: 'Siobhan',
+    });
+
+    expect(state.conversationContext.setting).toBe('An order of blue pottery.');
+    expect(state.contextUpdatedByParticipantName).toBe('Siobhan');
+  });
+
+  test('ending opens the recap; recaps fill it in by language; Back closes it', () => {
+    let state = reduceConversation(INITIAL_CONVERSATION_STATE, {
+      type: 'conversation_ended',
+      participantName: 'Ramesh',
+    });
+    expect(state.recap).toEqual({
+      endedByParticipantName: 'Ramesh',
+      recapTextsByLanguageCode: {},
+      hasFailed: false,
+    });
+
+    state = reduceConversation(state, {
+      type: 'conversation_recap',
+      languageCode: 'en',
+      text: 'What was agreed',
+    });
+    expect(state.recap?.recapTextsByLanguageCode).toEqual({ en: 'What was agreed' });
+
+    state = reduceConversation(state, { type: 'recap_dismissed' });
+    expect(state.recap).toBeNull();
+  });
+
+  test('a failed recap shows on the recap screen, not in the status line', () => {
+    let state = reduceConversation(INITIAL_CONVERSATION_STATE, {
+      type: 'conversation_ended',
+      participantName: null,
+    });
+    state = reduceConversation(state, {
+      type: 'error',
+      code: 'RECAP_UNAVAILABLE',
+      message: 'The recap could not be written.',
+    });
+
+    expect(state.recap?.hasFailed).toBe(true);
+    expect(state.latestError).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 import type { ErrorCode, JoinRoomMessage } from '@samvaad/shared';
 import type { ConversationConnection } from './conversation-connection';
 import { leaveCurrentRoom } from './handle-leave-room';
+import { createConversationContextMessage } from './handle-update-conversation-context';
 import { broadcastRoomState } from './room-messages';
 
 const JOIN_FAILURE_MESSAGE = {
@@ -31,5 +32,7 @@ export function handleJoinRoom(connection: ConversationConnection, message: Join
     roomCode: message.roomCode,
     participantId: connection.participantId,
   });
+  // The context someone set before this phone joined (D-016).
+  connection.sendServerMessage(createConversationContextMessage(room.context, null));
   broadcastRoomState(room);
 }

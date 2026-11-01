@@ -7,6 +7,7 @@ export const errorCodeSchema = z.enum([
   'UPSTREAM_UNAVAILABLE',
   'ROOM_NOT_FOUND',
   'ROOM_FULL',
+  'RECAP_UNAVAILABLE',
   'INTERNAL_ERROR',
 ]);
 

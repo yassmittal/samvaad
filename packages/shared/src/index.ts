@@ -1,4 +1,6 @@
 export * from './audio/audio-format';
+export * from './domain/conversation-context';
+export * from './domain/demo-conversation-preset';
 export * from './domain/error-code';
 export * from './domain/room-code';
 export * from './languages/supported-languages';

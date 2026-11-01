@@ -6,6 +6,11 @@ import {
   sendFinishedUtterance,
   startConversationTestServers,
 } from '../test-support/start-conversation-test-servers';
+import {
+  findSystemPrompt,
+  type HindiEnglishRoom,
+  startHindiEnglishRoom as startHindiEnglishRoomServers,
+} from '../test-support/start-hindi-english-room';
 import type { TestBrowserClient } from '../test-support/test-browser-client';
 import { waitForCondition } from '../test-support/wait-for-condition';
 
@@ -14,12 +19,6 @@ const SLOW_TRANSLATION_DELAY_MILLISECONDS = 300;
 let servers: ConversationTestServers;
 
 afterEach(() => servers.stop());
-
-type ChatCompletionsRequestBody = { messages: { role: string; content: string }[] };
-
-function findSystemPrompt(requestBody: Record<string, unknown>): string {
-  return (requestBody as ChatCompletionsRequestBody).messages[0]?.content ?? '';
-}
 
 /** Answers like Muse Spark would for a room prompt: the translation alone, no code line. */
 function translateByPrompt(requestBody: Record<string, unknown>): ScriptedTranslation {
@@ -36,41 +35,16 @@ function findTranslationMessages(messages: ServerMessage[]) {
   );
 }
 
-type HindiEnglishRoom = {
-  roomCode: string;
-  hindiBrowser: TestBrowserClient;
-  hindiParticipantId: string;
-  englishBrowser: TestBrowserClient;
-  englishParticipantId: string;
-};
-
 /** Asha creates a room in Hindi, Ben joins it in English. Their join messages are consumed. */
 async function startHindiEnglishRoom(
   options: Parameters<typeof startConversationTestServers>[0] = {},
-): Promise<HindiEnglishRoom> {
-  servers = await startConversationTestServers({
+): Promise<Omit<HindiEnglishRoom, 'servers'>> {
+  const { servers: roomServers, ...room } = await startHindiEnglishRoomServers({
     createScriptedTranslation: translateByPrompt,
     ...options,
   });
-  const hindiBrowser = servers.browser;
-  hindiBrowser.sendJson({ type: 'create_room', participantName: 'Asha', languageCode: 'hi' });
-  const { roomCode, participantId: hindiParticipantId } =
-    await hindiBrowser.waitForMessage('room_joined');
-  await hindiBrowser.waitForMessage('room_state');
-
-  const englishBrowser = await servers.connectAnotherBrowser();
-  englishBrowser.sendJson({
-    type: 'join_room',
-    roomCode,
-    participantName: 'Ben',
-    languageCode: 'en',
-  });
-  const { participantId: englishParticipantId } =
-    await englishBrowser.waitForMessage('room_joined');
-  await englishBrowser.waitForMessage('room_state');
-  await hindiBrowser.waitForMessage('room_state');
-
-  return { roomCode, hindiBrowser, hindiParticipantId, englishBrowser, englishParticipantId };
+  servers = roomServers;
+  return room;
 }
 
 describe('rooms: creating and joining', () => {

@@ -1,4 +1,10 @@
-import type { LanguageCode, ServerMessage } from '@samvaad/shared';
+import {
+  type ConversationContext,
+  EMPTY_CONVERSATION_CONTEXT,
+  type LanguageCode,
+  type ServerMessage,
+} from '@samvaad/shared';
+import type { ConversationUtterance } from '../lib/conversation-memory';
 import type { OrderedDelivery } from '../lib/create-ordered-delivery';
 
 /** One translation still streaming, kept so it can be cancelled when nobody can receive it. */
@@ -17,6 +23,12 @@ export type Room<Participant> = {
   translationJobs: Set<TranslationJob>;
   /** One per speaker and target language, so each listener hears that speaker in order. */
   translationDeliveries: Map<string, OrderedDelivery<ServerMessage>>;
+  /** The setting and glossary; either participant can change it (D-016). */
+  context: ConversationContext;
+  /** Every finished utterance, oldest first, for translation memory and the recap (D-016). */
+  utterances: ConversationUtterance[];
+  /** Set while the recaps are being written, so a second tap doesn't pay for them twice. */
+  isWritingRecap: boolean;
 };
 
 export function createEmptyRoom<Participant>(roomCode: string | null): Room<Participant> {
@@ -25,6 +37,9 @@ export function createEmptyRoom<Participant>(roomCode: string | null): Room<Part
     participants: new Map(),
     translationJobs: new Set(),
     translationDeliveries: new Map(),
+    context: EMPTY_CONVERSATION_CONTEXT,
+    utterances: [],
+    isWritingRecap: false,
   };
 }
 

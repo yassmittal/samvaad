@@ -286,3 +286,54 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   Devanagari with it.
 - **Revisit when:** real voices in a room show the extra English bias turning
   non-English speech into Latin script.
+
+## D-016 — Conversation context: owned by the room, a two-form glossary, memory in the system prompt
+
+- **Decision (Yash, 30 Oct, before the Phase 5 build):**
+  1. **The context belongs to the room.** It is a setting ("what's this conversation about")
+     and a glossary. Either participant can change it at any time, and the API sends the new
+     context to everyone in the room (`conversation_context`), and to a phone when it joins.
+     The creator can fill it in on the create form, where a demo preset fills it with one
+     tap. Table mode has the same editor behind a "Context" button.
+  2. **A glossary entry is `{ term, preferredTranslation }`:** the term, and how it is said in
+     the other language ("blue pottery" ↔ "ब्लू पॉटरी"). A blank `preferredTranslation` means
+     "keep it as it is", which suits names. This replaces the spec's `preferredTranslations`
+     (one form per language), which needs the room's languages before anyone has joined.
+  3. **Memory goes in the system prompt**, not as earlier chat turns: the setting, the
+     glossary and the last `CONVERSATION_MEMORY_UTTERANCE_COUNT` (8) utterances of the room,
+     each with its transcript and, once it exists, its translation into this request's target
+     language. The block says it is for reference and not to be translated. The prompt is
+     kept under a character budget (oldest utterances dropped first), because Muse Spark's
+     tokenizer isn't public; the schema's length limits bound the setting and glossary. An
+     empty context gives exactly the Phase 4 prompt, which is also the comparison script's
+     "without context" baseline.
+  4. **Keywords:** every glossary term, and every non-blank `preferredTranslation`, goes to
+     Muse Voice Transcribe as a keyword. Keywords are fixed at the handshake (D-005), so a
+     glossary change replaces each open transcription stream once its speaker is between
+     utterances (at once if they are, after the current utterance's final transcript if
+     not), the same hand-over the 55-minute rotation uses.
+  5. **No "I mix in English" switch.** D-015 already biases every room speaker to their
+     language plus English, and table mode to its two languages, so the switch would change
+     nothing. The language picker says "Mixing in English is fine" instead.
+  6. **"End conversation" ends it for both phones.** The API tells everyone
+     (`conversation_ended { participantName }`), every phone closes its microphone, and the
+     API writes one recap per listener language with Muse Spark and sends each to the
+     participants listening in it (`conversation_recap`). A table gets one in each of its two
+     languages. A failed or empty recap is an `error` with the new code `RECAP_UNAVAILABLE`.
+     The room stays open: the recap screen has Back to the conversation and Leave, and a
+     second End recaps the whole conversation again.
+- **Why:** Context is what makes this better than a phrase translator (MVP.md, the "Use of
+  Meta AI tooling" score). In a real meeting either side may need to add a name. The two-form
+  glossary entry is what a person would write on a card, and it doubles as two keywords.
+- **Trade-off:** A longer prompt may slow Muse Spark's first word (D-014). The log line
+  `translation complete` records the memory size and prompt length per utterance, and the
+  comparison script prints first-word times with and without context; tuning stays parked
+  with D-011. A glossary change costs one transcription reconnect per open microphone.
+  Keyword effect on Meta's transcripts is unmeasured (D-005 saw none in Phase 0).
+- **Revisit when:** a measurement shows the context slowing translation, or a phone in a room
+  needs a single-language bias (D-015).
+- **Checked in the build (30 Oct):** Meta accepts Devanagari keywords at the handshake (one
+  `smoke:transcribe` run). The recap prompt says "agreed" means both people accepted it, after a
+  Hindi recap called an unanswered offer agreed. One `compare:context` run: context fixed the
+  name, product terms, a price said as bare numbers and the speaker's gender, and the median time
+  to the first word was 1.29 s with context against 1.88 s without (one run, not a measurement).

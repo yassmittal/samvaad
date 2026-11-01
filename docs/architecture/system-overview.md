@@ -18,7 +18,7 @@
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  apps/api  (Fastify 5 on Bun, one process, state in memory)              │
 │                                                                          │
-│  room registry: room code → participants (id, name, languageCode)        │
+│  room registry: room code → participants, context, conversation so far   │
 │                                                                          │
 │  per speaking participant:                                               │
 │    TranscriptionStream ── WebSocket ──→ Muse Voice Transcribe            │
@@ -81,8 +81,8 @@ they need them.
 | `join_room { roomCode, participantName, languageCode }` | 4 | Two-phone mode |
 | `leave_room` | 4 | Leave the room; the socket stays open |
 | `playback_started { utteranceId }` | 2 | For the latency meter |
-| `update_conversation_context { setting, glossaryTerms }` | 5 | Context for translation |
-| `end_conversation` | 5 | Ask for the recap |
+| `update_conversation_context { setting, glossaryTerms: [{ term, preferredTranslation }] }` | 5 | The room's context for translation; either participant, any time (D-016) |
+| `end_conversation` | 5 | End the conversation for everyone and ask for the recap |
 
 **API → browser**
 
@@ -96,7 +96,9 @@ they need them.
 | `room_joined { roomCode, participantId }` | 4 | You created or joined this room, as this participant |
 | `room_state { roomCode, participants }` | 4 | Who is here, their language and whether their mic is on. Sent to everyone on every change |
 | `participant_left { participantId, participantName }` | 4 | Someone left (or their socket closed) |
-| `conversation_recap { languageCode, text }` | 5 | End-of-conversation recap |
+| `conversation_context { setting, glossaryTerms, updatedByParticipantName }` | 5 | The room's context, to everyone on every change and to a phone when it joins |
+| `conversation_ended { participantName }` | 5 | Someone ended the conversation; recaps follow. Mics close |
+| `conversation_recap { languageCode, text }` | 5 | End-of-conversation recap, to the participants listening in that language |
 | `error { code, message, utteranceId? }` | 1 | Something went wrong, with a code the UI can explain. `utteranceId` when it concerns one utterance (Phase 2) |
 
 ## Known risks

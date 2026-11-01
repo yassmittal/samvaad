@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import {
   buildRoomTranslationPrompt,
   buildTableModeTranslationPrompt,
+  type TranslationPromptContext,
 } from '../lib/build-translation-prompt';
 import type { UtteranceTranslationPlan } from '../lib/plan-utterance-translations';
 import {
@@ -24,10 +25,13 @@ type TranslationDeltaParser = {
   hasUsedFallback: () => boolean;
 };
 
-function buildSystemPrompt(plan: UtteranceTranslationPlan): string {
+function buildSystemPrompt(
+  plan: UtteranceTranslationPlan,
+  promptContext: TranslationPromptContext,
+): string {
   return plan.kind === 'between_table_languages'
-    ? buildTableModeTranslationPrompt(plan.languageCodes)
-    : buildRoomTranslationPrompt(plan);
+    ? buildTableModeTranslationPrompt(plan.languageCodes, promptContext)
+    : buildRoomTranslationPrompt({ ...plan, promptContext });
 }
 
 /** Table mode's answer starts with a target-language line (D-008); a room's doesn't (D-015). */
@@ -54,15 +58,18 @@ export async function* produceTranslationMessages({
   logger,
   utterance,
   plan,
+  promptContext,
   signal,
 }: {
   translationClient: MetaTranslationClient;
   logger: FastifyBaseLogger;
   utterance: UtteranceToTranslate;
   plan: UtteranceTranslationPlan;
+  promptContext: TranslationPromptContext;
   signal: AbortSignal;
 }): AsyncGenerator<ServerMessage> {
   const { utteranceId } = utterance;
+  const systemPrompt = buildSystemPrompt(plan, promptContext);
   const translationDeltaParser = createTranslationDeltaParser(plan);
   let targetLanguageCode: LanguageCode | null = null;
   let translationText = '';
@@ -88,7 +95,7 @@ export async function* produceTranslationMessages({
 
   try {
     const textDeltas = translationClient.streamTranslation({
-      systemPrompt: buildSystemPrompt(plan),
+      systemPrompt,
       utteranceText: utterance.utteranceText,
       signal,
     });
@@ -132,6 +139,9 @@ export async function* produceTranslationMessages({
         translationCompleteAtEpochMilliseconds - utterance.speechEndedAtEpochMilliseconds,
       transcriptFinalToFirstTranslationDeltaMilliseconds:
         firstTranslationDeltaAtEpochMilliseconds - utterance.transcriptFinalAtEpochMilliseconds,
+      // Whether context slows the first word (D-016): compare these against the delay above.
+      memoryUtteranceCount: promptContext.memoryUtterances.length,
+      systemPromptCharacterCount: systemPrompt.length,
     },
     'translation complete',
   );

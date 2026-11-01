@@ -34,6 +34,8 @@ type MetaTranscriptionStreamOptions = {
   metaApiKey: string;
   /** English language names, such as `["Hindi", "English"]` (D-005). */
   languageBias: string[];
+  /** Names and terms to listen for, from the glossary (D-016). Fixed at the handshake (D-005). */
+  keywords: string[];
   callbacks: TranscriptionStreamCallbacks;
   logger: FastifyBaseLogger;
 };
@@ -57,6 +59,7 @@ export function createMetaTranscriptionStream({
   transcriptionUrl,
   metaApiKey,
   languageBias,
+  keywords,
   callbacks,
   logger,
 }: MetaTranscriptionStreamOptions): MetaTranscriptionStream {
@@ -162,6 +165,7 @@ export function createMetaTranscriptionStream({
         audioEncoding: AUDIO_ENCODING,
         mode: 'ENDPOINTING',
         languageBias,
+        ...(keywords.length > 0 ? { keywords } : {}),
         emitAudioProgress: false,
       }),
     );

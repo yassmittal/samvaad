@@ -1,4 +1,5 @@
 import type { LanguageCode, ServerMessage } from '@samvaad/shared';
+import { type ConversationUtterance, selectConversationMemory } from '../lib/conversation-memory';
 import { createOrderedDelivery, type OrderedDelivery } from '../lib/create-ordered-delivery';
 import {
   findCandidateTargetLanguageCodes,
@@ -47,15 +48,39 @@ function findOrCreateTranslationDelivery(
   return delivery;
 }
 
+/** Keeps each finished translation with its utterance, for the next prompts' memory (D-016). */
+async function* rememberTranslation(
+  conversationUtterance: ConversationUtterance,
+  messages: AsyncGenerator<ServerMessage>,
+): AsyncGenerator<ServerMessage> {
+  for await (const message of messages) {
+    if (message.type === 'translation_complete') {
+      conversationUtterance.translationsByLanguageCode[message.targetLanguageCode] = message.text;
+    }
+    yield message;
+  }
+}
+
 /**
  * Translates one finished utterance once per listener language in the room (D-006, D-015),
- * or into the table's other language (D-008). Each starts at once; delivery keeps the order.
+ * or into the table's other language (D-008), with the room's context and the conversation so
+ * far (D-016). Each starts at once; delivery keeps the order.
  */
 export function startUtteranceTranslations(
   speaker: ConversationConnection,
-  { room, languageCodes }: RoomMembership,
+  { room, languageCodes, participantName }: RoomMembership,
   utterance: UtteranceToTranslate,
 ): void {
+  const earlierUtterances = [...room.utterances];
+  const conversationUtterance: ConversationUtterance = {
+    utteranceId: utterance.utteranceId,
+    speakerName: participantName,
+    languageCode: languageCodes.length === 1 ? languageCodes[0] : null,
+    transcript: utterance.utteranceText,
+    translationsByLanguageCode: {},
+  };
+  room.utterances.push(conversationUtterance);
+
   const plans = planUtteranceTranslations({
     speakerLanguageCodes: languageCodes,
     roomLanguageCodes: [...room.participants.values()].flatMap((participant) =>
@@ -70,13 +95,24 @@ export function startUtteranceTranslations(
 
     void findOrCreateTranslationDelivery(room, speaker.participantId, candidateTargetLanguageCodes)
       .run(() =>
-        produceTranslationMessages({
-          translationClient: speaker.translationClient,
-          logger: speaker.logger,
-          utterance,
-          plan,
-          signal: translationJob.abortController.signal,
-        }),
+        rememberTranslation(
+          conversationUtterance,
+          produceTranslationMessages({
+            translationClient: speaker.translationClient,
+            logger: speaker.logger,
+            utterance,
+            plan,
+            promptContext: {
+              context: room.context,
+              speakerName: participantName,
+              memoryUtterances: selectConversationMemory({
+                earlierUtterances,
+                candidateTargetLanguageCodes,
+              }),
+            },
+            signal: translationJob.abortController.signal,
+          }),
+        ),
       )
       .finally(() => room.translationJobs.delete(translationJob));
   }
