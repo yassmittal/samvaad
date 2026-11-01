@@ -11,10 +11,12 @@ Built in three parts, in this order. Hosting first, so every later check runs on
 **Read first:** `decisions.md` D-010, `about.md` → Rules, Submission Process, Judging.
 
 ## 6.1 Hosting (Tue morning)
-- **Ask Yash before deploying anything** (D-010).
-- `apps/api` on the EC2 instance under PM2, behind TLS on a subdomain (`wss://…`).
-  `ALLOWED_WEB_ORIGINS` set to the web app's URL.
-- `apps/web` on Vercel with `NEXT_PUBLIC_API_BASE_URL` set.
+- **Ask Yash before deploying anything** (D-010). Yash runs the steps in
+  [`../deployment.md`](../deployment.md).
+- `apps/api` on the EC2 instance under PM2 (`apps/api/ecosystem.config.cjs`), behind nginx and
+  TLS at `https://samvaad-api.yashmittal.xyz` (`wss://` for rooms). nginx passes the WebSocket
+  upgrade and keeps quiet sockets open for an hour. `ALLOWED_WEB_ORIGINS` set to the web app's URL.
+- `apps/web` on Vercel at `https://samvaad.yashmittal.xyz`, with `NEXT_PUBLIC_API_BASE_URL` set.
 - A spend limit alert on the Meta Billing page. A per-room cap on minutes
   (`MAX_ROOM_DURATION_MINUTES`) so a forgotten open mic can't drain the credit.
 

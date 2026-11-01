@@ -188,6 +188,11 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
 - **Why:** Long-lived WebSockets need a long-lived process. The instance and the PM2 setup
   already exist.
 - **Trade-off:** One more service on the instance. Confirm with Yash before deploying (Phase 6).
+- **Hosts (Yash, 1 Nov):** the API at **`https://samvaad-api.yashmittal.xyz`** (nginx + certbot →
+  `127.0.0.1:3030`, PM2 `samvaad-api`), next to StrideMon (3020) and meAsAgent (3010). The web
+  app on Vercel at **`https://samvaad.yashmittal.xyz`**. `yashmittal.xyz`'s DNS is already on
+  Vercel. The API runs on StrideMon's pinned `~/.bun-1.4.2`, the same version as `bun.lock`'s.
+  Every step is in [`deployment.md`](deployment.md); Yash runs them.
 
 ## D-011 — A latency budget, measured from Phase 2
 

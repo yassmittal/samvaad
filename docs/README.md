@@ -16,6 +16,7 @@ When a decision changes, the doc changes first.
 | 4 | [`conventions/coding-standards.md`](conventions/coding-standards.md) | Before writing any code. Naming, vocabulary, tests. **Not optional.** |
 | 5 | [`architecture/repository-structure.md`](architecture/repository-structure.md) | Deciding where a file goes. |
 | — | [`phases/`](phases/) | One spec per phase. Build from these. |
+| — | [`deployment.md`](deployment.md) | Hosting the API on the EC2 instance and the web app on Vercel (Phase 6.1). |
 
 ## Three rules that override everything else
 
