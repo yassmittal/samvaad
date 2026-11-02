@@ -510,3 +510,31 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   the original voice is on (full volume) or off. The original voice can't be heard while your own phone
   speaks a translation.
 - **Revisit when:** LiveKit replaces peer-to-peer after the hackathon (research doc §6).
+- **Revised by D-024:** the original voice now starts off, and goes quiet while the phone plays a translation.
+
+## D-024 — Fixes from the first live call: pace Meta's audio in the API, the original voice starts off
+
+- **Context:** Yash's first call on the hosted app (2 Nov) had two problems. People heard the other
+  person's real voice about as loudly as the translation, and some sentences were never translated.
+  The API log showed why the sentences were lost. On one phone, Meta ended the transcription stream with
+  "Ingress audio slower than real-time" about 16 s after every reopen (11 times in one call, 1 in all the
+  days before). That phone's microphone delivers slightly less than real-time audio. Before Phase 7, a mic
+  was only open while someone was talking, so the shortfall rarely added up. Now the mic stays open for the
+  whole call (D-019, D-022), so it adds up every 16 s. Whatever was being said at that moment was lost
+  (D-017 reopens the stream, but not the utterance).
+- **Decision:**
+  1. **The API keeps Meta's audio at real-time pace.** When the audio forwarded on a stream falls more than
+     `TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS` (default 400, `0` turns it off) behind the time since
+     the stream opened, the API sends Meta 80 ms frames of silence until the gap is back under that.
+     The silence counts as audio received, so the speech-end time (D-011) still lines up with Meta's
+     positions. Each stream logs how much silence it needed when it closes, so the phone's shortfall shows up.
+  2. **The original voice (D-023) starts off.** "Their voice" in the call bar turns it on. When it's on,
+     it goes silent while this phone plays a translation, so the translation is always what you hear.
+- **Why:** The phone can't be trusted to keep time (a sample-rate mismatch, a throttled audio thread, a
+  slow uplink), but the API can. A few 80 ms gaps of silence are inaudible to the transcriber, while a broken
+  stream loses a whole sentence. And a translated call should sound translated by default. The real voice
+  under it is a choice for people who want it, not something everyone has to tune out.
+- **Trade-off:** If a phone's uplink stalls and then sends everything at once, the padded silence plus the
+  late audio can put the stream ahead of real time. Meta tolerates a few seconds ahead (the 4 s connect
+  queue, D-017). Fewer people will discover the original voice.
+

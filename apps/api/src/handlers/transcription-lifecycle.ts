@@ -40,6 +40,7 @@ function openTranscriptionStream(
       ? findLanguageBias(connection.membership.languageCodes)
       : [],
     keywords,
+    maximumAudioLagMilliseconds: connection.env.TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS,
     logger: connection.logger,
     callbacks: {
       onSpeechStarted(turnId) {

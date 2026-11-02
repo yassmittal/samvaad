@@ -153,8 +153,8 @@ export function InCallScreen({
           {originalVoice !== null && (
             <CallControlButton
               label="Their voice"
-              tone={originalVoice.isOn ? 'plain' : 'active'}
-              isPressed={!originalVoice.isOn}
+              tone={originalVoice.isOn ? 'active' : 'plain'}
+              isPressed={originalVoice.isOn}
               icon={<SpeakerIcon />}
               onClick={originalVoice.onToggle}
             />

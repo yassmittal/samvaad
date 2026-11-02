@@ -133,6 +133,7 @@ function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) 
     microphoneStatus,
     findMicrophoneStream,
     isSendingRealAudio,
+    isSpeakingTranslation: isSpeaking,
     sendSignal: sendClientMessage,
     subscribeToSignals: subscribeToWebrtcSignals,
   });

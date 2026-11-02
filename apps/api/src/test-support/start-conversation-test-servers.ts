@@ -43,6 +43,8 @@ export async function startConversationTestServers(options: ConversationTestServ
     CARTESIA_API_BASE_URL: fakeSpeechServer.apiBaseUrl,
     // One request per translation, so tests can script each by its index; the race has its own tests.
     TRANSLATION_PARALLEL_REQUEST_COUNT: '1',
+    // Tests count the exact audio Meta receives; the padding has its own tests (D-024).
+    TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS: '0',
     ...options.env,
   });
   const server = await buildServer({ env, isLoggingEnabled: false });

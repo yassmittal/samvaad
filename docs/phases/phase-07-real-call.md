@@ -160,3 +160,20 @@ language, without being told how.
   Mute stopped it.
 - **Not checked:** any real phone (echo on speaker, iOS volume, Android autoplay), mobile data without
   TURN, and how the voices sound (Yash to listen).
+
+## First live call (2 Nov, hosted app)
+
+Yash called on the hosted app, with Cartesia speaking. Two problems:
+
+- **Some sentences were never translated.** The API log showed Meta ending one phone's transcription
+  stream with "Ingress audio slower than real-time" about 16 s after every reopen, 11 times in one call.
+  That phone's mic sends slightly less than real-time audio, and now that the mic stays open for the whole
+  call, the shortfall adds up. The sentence in progress at each break was lost. **Fix (D-024):** the API pads
+  Meta's audio with 80 ms of silence whenever a stream falls more than 400 ms behind real time
+  (`TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS`). It logs `silencePaddingMilliseconds` when each stream
+  closes or fails, so the next live log shows how far behind each phone runs.
+- **The real voice was as loud as the translation.** **Fix (D-024):** "Their voice" now starts off, and
+  goes quiet while this phone plays a translation.
+
+Timings from the same log: speech end → playback start 2.3 to 2.6 s on clean utterances, Cartesia's first
+audio 150 to 640 ms after the translation was complete. One Muse Spark request timed out.

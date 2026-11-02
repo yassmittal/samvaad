@@ -1,6 +1,12 @@
-import { BYTES_PER_SAMPLE, FRAME_DURATION_MILLISECONDS, SAMPLE_RATE_HERTZ } from '@samvaad/shared';
+import {
+  BYTES_PER_FRAME,
+  BYTES_PER_SAMPLE,
+  FRAME_DURATION_MILLISECONDS,
+  SAMPLE_RATE_HERTZ,
+} from '@samvaad/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { calculateSpeechEndedAtEpochMilliseconds } from '../lib/calculate-speech-ended-at';
+import { countSilencePaddingFrames } from '../lib/count-silence-padding-frames';
 import {
   type MetaTranscriptionEvent,
   metaHandshakeResponseSchema,
@@ -40,6 +46,11 @@ type MetaTranscriptionStreamOptions = {
   languageBias: string[];
   /** Names and terms to listen for, from the glossary (D-016). Fixed at the handshake (D-005). */
   keywords: string[];
+  /**
+   * When the forwarded audio falls this far behind real time, silence makes up the rest, so Meta
+   * doesn't end the stream (D-024). `0` forwards only what the phone sends.
+   */
+  maximumAudioLagMilliseconds: number;
   callbacks: TranscriptionStreamCallbacks;
   logger: FastifyBaseLogger;
 };
@@ -64,6 +75,7 @@ export function createMetaTranscriptionStream({
   metaApiKey,
   languageBias,
   keywords,
+  maximumAudioLagMilliseconds,
   callbacks,
   logger,
 }: MetaTranscriptionStreamOptions): MetaTranscriptionStream {
@@ -75,17 +87,63 @@ export function createMetaTranscriptionStream({
   let audioReceivedBytes = 0;
   let lastAudioFrameReceivedAtEpochMilliseconds = Date.now();
   const queuedFrames: Uint8Array[] = [];
+  // Real-time pacing (D-024), counted from Meta's handshake response.
+  let streamingStartedAtEpochMilliseconds = 0;
+  let audioSentBytes = 0;
+  let silencePaddingFrameCount = 0;
+  let pacingInterval: ReturnType<typeof setInterval> | null = null;
 
   const handshakeTimeout = setTimeout(() => {
     fail(`no handshake response within ${HANDSHAKE_RESPONSE_TIMEOUT_MILLISECONDS} ms`);
   }, HANDSHAKE_RESPONSE_TIMEOUT_MILLISECONDS);
   let endStreamCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  function describePacing() {
+    return {
+      streamAgeMilliseconds:
+        streamingStartedAtEpochMilliseconds === 0
+          ? 0
+          : Date.now() - streamingStartedAtEpochMilliseconds,
+      audioSentMilliseconds: calculateAudioDurationMilliseconds(audioSentBytes),
+      silencePaddingMilliseconds: silencePaddingFrameCount * FRAME_DURATION_MILLISECONDS,
+    };
+  }
+
+  function stopPacing(): void {
+    if (pacingInterval !== null) {
+      clearInterval(pacingInterval);
+      pacingInterval = null;
+    }
+  }
+
+  /** Sends silence when the phone's audio has fallen behind real time (D-024). */
+  function padToRealTime(): void {
+    if (state !== 'streaming') {
+      return;
+    }
+    const nowEpochMilliseconds = Date.now();
+    const paddingFrameCount = countSilencePaddingFrames({
+      elapsedMilliseconds: nowEpochMilliseconds - streamingStartedAtEpochMilliseconds,
+      audioSentMilliseconds: calculateAudioDurationMilliseconds(audioSentBytes),
+      maximumAudioLagMilliseconds,
+      frameDurationMilliseconds: FRAME_DURATION_MILLISECONDS,
+    });
+    for (let frameIndex = 0; frameIndex < paddingFrameCount; frameIndex += 1) {
+      // A new buffer is zero-filled: PCM16 silence.
+      socket.send(new Uint8Array(BYTES_PER_FRAME));
+      audioSentBytes += BYTES_PER_FRAME;
+      // Meta's audio positions include the silence, so the speech-end maths must too (D-011).
+      audioReceivedBytes += BYTES_PER_FRAME;
+      lastAudioFrameReceivedAtEpochMilliseconds = nowEpochMilliseconds;
+    }
+    silencePaddingFrameCount += paddingFrameCount;
+  }
+
   function fail(reason: string): void {
     if (state === 'closed') {
       return;
     }
-    logger.warn({ reason }, 'transcription stream failed');
+    logger.warn({ reason, ...describePacing() }, 'transcription stream failed');
     const wasEnding = state === 'ending';
     const hasStreamed = state === 'streaming';
     finishClosing();
@@ -97,6 +155,7 @@ export function createMetaTranscriptionStream({
 
   function finishClosing(): void {
     state = 'closed';
+    stopPacing();
     clearTimeout(handshakeTimeout);
     if (endStreamCloseTimeout) {
       clearTimeout(endStreamCloseTimeout);
@@ -109,6 +168,7 @@ export function createMetaTranscriptionStream({
 
   function sendEndStream(): void {
     state = 'ending';
+    stopPacing();
     socket.send(JSON.stringify({ type: 'endStream' }));
     endStreamCloseTimeout = setTimeout(() => {
       logger.warn('Meta did not close the transcription stream after endStream');
@@ -126,8 +186,13 @@ export function createMetaTranscriptionStream({
     clearTimeout(handshakeTimeout);
     logger.info({ metaSessionId: handshakeResponse.data.sessionId }, 'transcription stream open');
     state = 'streaming';
+    streamingStartedAtEpochMilliseconds = Date.now();
     for (const frame of queuedFrames.splice(0)) {
       socket.send(frame);
+      audioSentBytes += frame.byteLength;
+    }
+    if (maximumAudioLagMilliseconds > 0) {
+      pacingInterval = setInterval(padToRealTime, FRAME_DURATION_MILLISECONDS);
     }
     if (isEndRequested) {
       sendEndStream();
@@ -200,7 +265,10 @@ export function createMetaTranscriptionStream({
     }
     // After endStream, Meta ends the connection without a close frame (1006). That's normal.
     if (state === 'ending') {
-      logger.info({ closeCode: closeEvent.code }, 'transcription stream closed after endStream');
+      logger.info(
+        { closeCode: closeEvent.code, ...describePacing() },
+        'transcription stream closed after endStream',
+      );
       finishClosing();
       callbacks.onClosed();
       return;
@@ -222,6 +290,7 @@ export function createMetaTranscriptionStream({
 
       if (state === 'streaming') {
         socket.send(frame);
+        audioSentBytes += frame.byteLength;
         return;
       }
       queuedFrames.push(frame);

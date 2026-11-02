@@ -16,10 +16,9 @@ import {
   type VoiceActivity,
 } from './update-voice-activity';
 
-/** The other person's real voice plays this quietly, under the translation (D-023). */
+/** The other person's real voice plays this quietly, under the translation, when turned on (D-023, D-024). */
 export const ORIGINAL_VOICE_VOLUME = 0.25;
 const VOICE_ACTIVITY_CHECK_MILLISECONDS = 100;
-const VOLUME_TOLERANCE = 0.01;
 const ANALYSER_FFT_SIZE = 512;
 
 type WebrtcSignalClientMessage = Extract<ClientMessage, { type: 'webrtc_signal' }>;
@@ -35,6 +34,8 @@ type OriginalVoiceOptions = {
   findMicrophoneStream: () => MediaStream | null;
   /** Off while muted and while this phone speaks a translation, so nobody hears it back. */
   isSendingRealAudio: boolean;
+  /** This phone is playing a translation: their real voice goes quiet under it (D-024). */
+  isSpeakingTranslation: boolean;
   sendSignal: (message: WebrtcSignalClientMessage) => void;
   subscribeToSignals: (listener: (signal: WebrtcSignalServerMessage) => void) => () => void;
 };
@@ -55,7 +56,8 @@ function toSessionDescription(description: RTCSessionDescriptionInit): WebrtcSes
  * The other person's real voice, peer to peer (D-023). The phone that joined second offers; a
  * new offer always starts a fresh connection, so a reconnect on either side simply sets it up
  * again. The voice plays through an `<audio>` element, inside what the browser's echo canceller
- * cancels, at `ORIGINAL_VOICE_VOLUME`; iOS ignores that volume, so there it starts off.
+ * cancels, at `ORIGINAL_VOICE_VOLUME`. It starts off, and goes quiet while this phone plays a
+ * translation (D-024). iOS ignores that volume, so there, once on, it plays at full volume.
  */
 export function useOriginalVoice({
   otherParticipantId,
@@ -64,19 +66,22 @@ export function useOriginalVoice({
   microphoneStatus,
   findMicrophoneStream,
   isSendingRealAudio,
+  isSpeakingTranslation,
   sendSignal,
   subscribeToSignals,
 }: OriginalVoiceOptions) {
   const [isConnected, setIsConnected] = useState(false);
-  const [isOriginalVoiceOn, setIsOriginalVoiceOn] = useState(true);
+  const [isOriginalVoiceOn, setIsOriginalVoiceOn] = useState(false);
   const [isOtherPersonSpeaking, setIsOtherPersonSpeaking] = useState(false);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const remoteAnalyserNodeRef = useRef<AnalyserNode | null>(null);
   const sendTrackRef = useRef<MediaStreamTrack | null>(null);
   const isSendingRealAudioRef = useRef(isSendingRealAudio);
   isSendingRealAudioRef.current = isSendingRealAudio;
-  const isOriginalVoiceOnRef = useRef(isOriginalVoiceOn);
-  isOriginalVoiceOnRef.current = isOriginalVoiceOn;
+  // Silent while off, and under this phone's own translation (D-024).
+  const isOriginalVoiceMuted = !isOriginalVoiceOn || isSpeakingTranslation;
+  const isOriginalVoiceMutedRef = useRef(isOriginalVoiceMuted);
+  isOriginalVoiceMutedRef.current = isOriginalVoiceMuted;
   const callbacksRef = useRef({ sendSignal, subscribeToSignals, findMicrophoneStream });
   callbacksRef.current = { sendSignal, subscribeToSignals, findMicrophoneStream };
 
@@ -104,12 +109,7 @@ export function useOriginalVoice({
       audioElement.autoplay = true;
       audioElement.srcObject = remoteStream;
       audioElement.volume = ORIGINAL_VOICE_VOLUME;
-      const canSetVolume = Math.abs(audioElement.volume - ORIGINAL_VOICE_VOLUME) < VOLUME_TOLERANCE;
-      // iOS plays media at full volume whatever we set: the voice would drown the translation.
-      if (!canSetVolume) {
-        setIsOriginalVoiceOn(false);
-      }
-      audioElement.muted = !(canSetVolume && isOriginalVoiceOnRef.current);
+      audioElement.muted = isOriginalVoiceMutedRef.current;
       audioElement.play().catch((error: unknown) => console.warn('original voice blocked', error));
 
       const playbackAudioOutput = findPlaybackAudioOutput();
@@ -235,9 +235,9 @@ export function useOriginalVoice({
 
   useEffect(() => {
     if (audioElementRef.current !== null) {
-      audioElementRef.current.muted = !isOriginalVoiceOn;
+      audioElementRef.current.muted = isOriginalVoiceMuted;
     }
-  }, [isOriginalVoiceOn]);
+  }, [isOriginalVoiceMuted]);
 
   // Whether they are talking right now, for the orb (D-022), from their voice's loudness.
   useEffect(() => {

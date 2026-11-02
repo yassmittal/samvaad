@@ -15,6 +15,8 @@ const DEFAULT_PARTICIPANT_RECONNECT_GRACE_SECONDS = 60;
 // The faster of two Muse Spark requests cuts the wait for the first word (D-020).
 const DEFAULT_TRANSLATION_PARALLEL_REQUEST_COUNT = 2;
 const MAXIMUM_TRANSLATION_PARALLEL_REQUEST_COUNT = 4;
+// Past this lag behind real time, the API pads Meta's audio with silence (D-024).
+const DEFAULT_TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS = 400;
 // Who speaks the translation: each phone's own voice (D-007), or a voice API through us (D-021).
 export const SPEECH_PROVIDERS = ['browser', 'elevenlabs', 'cartesia'] as const;
 export type SpeechProvider = (typeof SPEECH_PROVIDERS)[number];
@@ -50,6 +52,12 @@ export const apiEnvSchema = z
       .min(1)
       .max(MAXIMUM_TRANSLATION_PARALLEL_REQUEST_COUNT)
       .default(DEFAULT_TRANSLATION_PARALLEL_REQUEST_COUNT),
+    /** `0` turns the padding off: only the phone's own audio is forwarded. */
+    TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .default(DEFAULT_TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS),
     PORT: z.coerce.number().int().min(1).max(65_535).default(DEFAULT_PORT),
     /** Tests use fractions to reach the limits in milliseconds. */
     MAX_ROOM_DURATION_MINUTES: z.coerce

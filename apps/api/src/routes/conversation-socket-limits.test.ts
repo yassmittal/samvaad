@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { BYTES_PER_FRAME, FRAME_DURATION_MILLISECONDS } from '@samvaad/shared';
 import { MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE } from '../handlers/transcription-lifecycle';
 import {
   type ConversationTestServers,
@@ -94,5 +95,50 @@ describe('Meta ending a stream that worked, while the mic is on (D-017)', () => 
     expect(servers.fakeMetaServer.connections).toHaveLength(
       MAXIMUM_AUTOMATIC_REOPENS_PER_MINUTE + 1,
     );
+  });
+});
+
+describe('a phone whose audio falls behind real time (D-024)', () => {
+  const MAXIMUM_AUDIO_LAG_MILLISECONDS = 200;
+  const QUIET_PHONE_MILLISECONDS = 700;
+
+  test('the API pads Meta with silence, so the stream keeps real-time pace', async () => {
+    servers = await startConversationTestServers({
+      env: { TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS: String(MAXIMUM_AUDIO_LAG_MILLISECONDS) },
+    });
+    const metaConnection = await servers.startTableSessionWithMicrophoneOpen();
+
+    // The phone sends nothing at all: the worst case of a slow phone.
+    await Bun.sleep(QUIET_PHONE_MILLISECONDS);
+
+    // 700 ms in, at most 200 ms behind: at least 500 ms of silence, in whole frames.
+    const minimumByteCount =
+      ((QUIET_PHONE_MILLISECONDS - MAXIMUM_AUDIO_LAG_MILLISECONDS - FRAME_DURATION_MILLISECONDS) /
+        FRAME_DURATION_MILLISECONDS) *
+      BYTES_PER_FRAME;
+    expect(metaConnection.receivedAudioByteCount).toBeGreaterThanOrEqual(minimumByteCount);
+    expect(metaConnection.receivedAudioByteCount % BYTES_PER_FRAME).toBe(0);
+    expect(metaConnection.receivedAudioByteCount).toBeLessThanOrEqual(
+      (QUIET_PHONE_MILLISECONDS / FRAME_DURATION_MILLISECONDS) * BYTES_PER_FRAME,
+    );
+  });
+
+  test('a phone that keeps pace gets no silence added', async () => {
+    servers = await startConversationTestServers({
+      env: { TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS: String(MAXIMUM_AUDIO_LAG_MILLISECONDS) },
+    });
+    const metaConnection = await servers.startTableSessionWithMicrophoneOpen();
+    const frameCount = 6;
+
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+      servers.browser.sendAudioFrame(new Uint8Array(BYTES_PER_FRAME).fill(1));
+      await Bun.sleep(FRAME_DURATION_MILLISECONDS);
+    }
+    await waitForCondition(
+      () => metaConnection.receivedAudioByteCount >= frameCount * BYTES_PER_FRAME,
+      'every frame',
+    );
+
+    expect(metaConnection.receivedAudioByteCount).toBe(frameCount * BYTES_PER_FRAME);
   });
 });
