@@ -177,3 +177,20 @@ Yash called on the hosted app, with Cartesia speaking. Two problems:
 
 Timings from the same log: speech end → playback start 2.3 to 2.6 s on clean utterances, Cartesia's first
 audio 150 to 640 ms after the translation was complete. One Muse Spark request timed out.
+
+### Second live call (2 Nov, after the D-024 deploy)
+
+- No stream broke. The padding worked: the phone that answered needed 5.4 s of silence in its first 7 s, and
+  26 s over the next 42 s, then none. So that phone's audio starts badly and then recovers. The laptop needed
+  80 ms in two minutes.
+- **The phone never played a translation** (no `playback_started` from it at all), while the laptop played
+  every one. One cause found and fixed: `useSpeechOutput` built its queue only when the browser had
+  `speechSynthesis`. Android in-app browsers (a link opened inside an app) have none, so even the API's
+  Cartesia audio was dropped without a sound. The queue is now made regardless, and a translation without
+  API audio stays captions only on such a browser. Checked in Chromium with `speechSynthesis` removed: the
+  Cartesia audio played and the speaker got ✓✓.
+- **Audio that a phone pauses now resumes.** The microphone's and the speaker's `AudioContext` ask to resume
+  whenever the phone suspends or interrupts them (the mic starting, a notification, iOS's `interrupted`), and
+  any tap on the call screen resumes both. A paused capture context sends no audio, which matches the silent
+  start.
+- The answer screen no longer wipes a typed name when the caller's details (`room_preview`) arrive.

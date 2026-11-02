@@ -1,4 +1,5 @@
 import { SAMPLE_RATE_HERTZ, SAMPLES_PER_FRAME } from '@samvaad/shared';
+import { keepAudioContextRunning } from '../speech-output/playback-audio-output';
 
 const PCM_CAPTURE_PROCESSOR_URL = '/audio-worklets/pcm-capture-processor.js';
 const PCM_CAPTURE_PROCESSOR_NAME = 'pcm-capture-processor';
@@ -31,6 +32,10 @@ export async function startPcmCapture(
   });
 
   const audioContext = new AudioContext();
+  // Created after an await, so outside the tap: some phones start it paused. A paused capture
+  // sends no audio at all, which is how a call starts silent.
+  keepAudioContextRunning(audioContext);
+  audioContext.resume().catch(() => {});
   try {
     await audioContext.audioWorklet.addModule(PCM_CAPTURE_PROCESSOR_URL);
     const sourceNode = audioContext.createMediaStreamSource(mediaStream);

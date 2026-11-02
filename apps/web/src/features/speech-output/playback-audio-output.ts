@@ -14,8 +14,26 @@ export type PlaybackAudioOutput = {
 };
 
 let playbackAudioOutput: PlaybackAudioOutput | null = null;
+// Every context this page records or plays with, so a tap can resume any the phone paused.
+const runningAudioContexts = new Set<AudioContext>();
 
-/** Creates (once) and resumes the playback context. Call it inside a tap. */
+/**
+ * Phones pause audio when the microphone or a call starts, or the app goes to the background
+ * (iOS calls that state `interrupted`). Ask it to carry on; if the phone wants a tap first,
+ * the next tap's `unlockPlaybackAudioOutput` resumes it.
+ */
+export function keepAudioContextRunning(audioContext: AudioContext): void {
+  runningAudioContexts.add(audioContext);
+  audioContext.addEventListener('statechange', () => {
+    if (audioContext.state === 'closed') {
+      runningAudioContexts.delete(audioContext);
+    } else if (audioContext.state !== 'running') {
+      audioContext.resume().catch(() => {});
+    }
+  });
+}
+
+/** Creates (once) and resumes the playback context, and any paused microphone. Call it inside a tap. */
 export function unlockPlaybackAudioOutput(): void {
   if (typeof AudioContext === 'undefined') {
     return;
@@ -28,8 +46,13 @@ export function unlockPlaybackAudioOutput(): void {
     gainNode.connect(analyserNode);
     analyserNode.connect(audioContext.destination);
     playbackAudioOutput = { audioContext, destinationNode: gainNode, analyserNode };
+    keepAudioContextRunning(audioContext);
   }
-  void playbackAudioOutput.audioContext.resume();
+  for (const audioContext of runningAudioContexts) {
+    if (audioContext.state !== 'running') {
+      audioContext.resume().catch(() => {});
+    }
+  }
 }
 
 /** `null` until the first tap has unlocked it. */

@@ -18,6 +18,7 @@ import { ConversationContextPanel } from '../conversation-context/conversation-c
 import { isOfferingParticipant } from '../original-voice/is-offering-participant';
 import { useOriginalVoice } from '../original-voice/use-original-voice';
 import { RecapView } from '../recap/recap-view';
+import { unlockSpeech } from '../speech-output/unlock-speech';
 import { type RoomJoinFailureCode, useRoomConversation } from './use-room-conversation';
 
 const JOIN_FAILURE_TEXT = {
@@ -85,6 +86,17 @@ function useCallStart(isInCall: boolean): number | null {
   return callStartedAtEpochMilliseconds;
 }
 
+/**
+ * A phone can pause the page's audio mid-call (the mic starting, a notification, a trip to
+ * another app) and only lets it resume inside a tap. Any tap on the call screen does.
+ */
+function useResumeAudioOnTap(): void {
+  useEffect(() => {
+    document.addEventListener('pointerdown', unlockSpeech);
+    return () => document.removeEventListener('pointerdown', unlockSpeech);
+  }, []);
+}
+
 function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) {
   const router = useRouter();
   const {
@@ -118,6 +130,7 @@ function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) 
   } = roomConversation;
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
   useScreenWakeLock();
+  useResumeAudioOnTap();
 
   const otherParticipant =
     room?.participants.find((participant) => participant.participantId !== participantId) ?? null;

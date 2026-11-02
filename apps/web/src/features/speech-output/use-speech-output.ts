@@ -35,20 +35,27 @@ export function useSpeechOutput({
   const queueRef = useRef<SpeechQueue | null>(null);
 
   useEffect(() => {
-    if (typeof speechSynthesis === 'undefined') {
-      setIsSpeechSupported(false);
-      return;
-    }
+    // Some browsers have no voice of their own (Android in-app browsers, such as a link opened
+    // inside an app). The API's speech still plays there, so the queue is made regardless.
+    const hasSpeechSynthesis = typeof speechSynthesis !== 'undefined';
+    setIsSpeechSupported(hasSpeechSynthesis);
     // The voice list often fills in after the page loads, announced by `voiceschanged`.
     const updateVoices = () => setVoices(speechSynthesis.getVoices());
-    updateVoices();
-    speechSynthesis.addEventListener('voiceschanged', updateVoices);
+    if (hasSpeechSynthesis) {
+      updateVoices();
+      speechSynthesis.addEventListener('voiceschanged', updateVoices);
+    }
 
     let activePlayback: { stop: () => void } | null = null;
     const queue = createSpeechQueue({
       speak(request, { onStarted, onFinished }) {
         const { speechSynthesisLanguageTag } = SUPPORTED_LANGUAGE_BY_CODE[request.languageCode];
-        const speakText = () =>
+        const speakText = () => {
+          if (!hasSpeechSynthesis) {
+            // Captions only for this one: nothing to speak it with.
+            onFinished();
+            return;
+          }
           speakWithSpeechSynthesis({
             text: request.text,
             voice: pickVoice(voicesRef.current, speechSynthesisLanguageTag),
@@ -56,6 +63,7 @@ export function useSpeechOutput({
             onStarted,
             onFinished,
           });
+        };
         const playbackAudioOutput = findPlaybackAudioOutput();
         if (!request.hasTranslationAudio || playbackAudioOutput === null) {
           speakText();
@@ -85,9 +93,11 @@ export function useSpeechOutput({
     queueRef.current = queue;
 
     return () => {
-      speechSynthesis.removeEventListener('voiceschanged', updateVoices);
       queue.clearWaitingRequests();
-      speechSynthesis.cancel();
+      if (hasSpeechSynthesis) {
+        speechSynthesis.removeEventListener('voiceschanged', updateVoices);
+        speechSynthesis.cancel();
+      }
       activePlayback?.stop();
       queueRef.current = null;
     };

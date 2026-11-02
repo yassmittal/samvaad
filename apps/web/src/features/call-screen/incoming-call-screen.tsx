@@ -6,7 +6,7 @@ import {
   SUPPORTED_LANGUAGE_BY_CODE,
 } from '@samvaad/shared';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import {
   findRememberedRoomEntry,
   type RoomEntry,
@@ -40,10 +40,21 @@ export function IncomingCallScreen({
   const [problemText, setProblemText] = useState<string | null>(null);
   const callerLanguageCode = caller?.languageCode ?? null;
 
-  // localStorage and navigator only exist in the browser; the caller's language comes later.
+  const hasEditedLanguageRef = useRef(false);
+
+  // localStorage only exists in the browser. Only fills an empty name: the caller's details can
+  // arrive after the person has started typing.
   useEffect(() => {
+    const rememberedParticipantName = findRememberedRoomEntry()?.participantName ?? '';
+    setParticipantName((typedName) => (typedName === '' ? rememberedParticipantName : typedName));
+  }, []);
+
+  // The caller's language comes later, with `room_preview`; a language picked by hand stays.
+  useEffect(() => {
+    if (hasEditedLanguageRef.current) {
+      return;
+    }
     const rememberedRoomEntry = findRememberedRoomEntry();
-    setParticipantName(rememberedRoomEntry?.participantName ?? '');
     setLanguageCode(
       pickDefaultLanguageCode({
         rememberedLanguageCode: rememberedRoomEntry?.languageCode ?? null,
@@ -85,7 +96,10 @@ export function IncomingCallScreen({
             participantName={participantName}
             languageCode={languageCode}
             onParticipantNameChange={setParticipantName}
-            onLanguageCodeChange={setLanguageCode}
+            onLanguageCodeChange={(nextLanguageCode) => {
+              hasEditedLanguageRef.current = true;
+              setLanguageCode(nextLanguageCode);
+            }}
           />
         </div>
         <div className="mt-auto flex w-full flex-col items-center gap-4 pt-8">
