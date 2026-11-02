@@ -16,7 +16,8 @@
     "test": "bun test scripts && bun --filter '*' test",
     "smoke:transcribe": "bun --env-file=apps/api/.env scripts/smoke-transcribe.ts",
     "smoke:translate": "bun --env-file=apps/api/.env scripts/smoke-translate.ts",
-    "compare:context": "bun --env-file=apps/api/.env scripts/compare-translation-context.ts"
+    "compare:context": "bun --env-file=apps/api/.env scripts/compare-translation-context.ts",
+    "compare:voices": "bun --env-file=apps/api/.env scripts/compare-voices.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

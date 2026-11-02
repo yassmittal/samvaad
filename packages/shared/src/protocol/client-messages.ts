@@ -49,6 +49,46 @@ export const joinRoomMessageSchema = z.object({
   previousParticipantId: z.string().optional(),
 });
 
+/**
+ * Who is in a room, before joining it, so the incoming-call screen can say "Ramesh is calling"
+ * (D-022). Answered with `room_preview`, or `error { code: 'ROOM_NOT_FOUND' }`.
+ */
+export const previewRoomMessageSchema = z.object({
+  type: z.literal('preview_room'),
+  roomCode: roomCodeSchema,
+});
+
+/** A WebRTC session description, as `RTCSessionDescriptionInit` carries it (D-023). */
+export const webrtcSessionDescriptionSchema = z.object({
+  type: z.enum(['offer', 'answer']),
+  sdp: z.string().max(20_000),
+});
+
+/** A WebRTC ICE candidate, as `RTCIceCandidateInit` carries it (D-023). */
+export const webrtcIceCandidateSchema = z.object({
+  candidate: z.string().max(2_000),
+  sdpMid: z.string().nullable(),
+  sdpMLineIndex: z.number().int().nullable(),
+});
+
+/**
+ * Part of setting up the peer-to-peer audio between the two phones of a room, for the API to
+ * pass to the other participant (D-023). Exactly one of `description` and `candidate`.
+ */
+export const webrtcSignalClientMessageSchema = z
+  .object({
+    type: z.literal('webrtc_signal'),
+    toParticipantId: z.string(),
+    description: webrtcSessionDescriptionSchema.optional(),
+    candidate: webrtcIceCandidateSchema.optional(),
+  })
+  .refine(
+    ({ description, candidate }) => (description === undefined) !== (candidate === undefined),
+    {
+      error: 'A signal carries a description or a candidate.',
+    },
+  );
+
 /** Leave the room, or end the table session. The socket stays open. */
 export const leaveRoomMessageSchema = z.object({
   type: z.literal('leave_room'),
@@ -85,16 +125,19 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   startTableSessionMessageSchema,
   createRoomMessageSchema,
   joinRoomMessageSchema,
+  previewRoomMessageSchema,
   leaveRoomMessageSchema,
   microphoneStateMessageSchema,
   playbackStartedMessageSchema,
   updateConversationContextMessageSchema,
   endConversationMessageSchema,
+  webrtcSignalClientMessageSchema,
 ]);
 
 export type StartTableSessionMessage = z.infer<typeof startTableSessionMessageSchema>;
 export type CreateRoomMessage = z.infer<typeof createRoomMessageSchema>;
 export type JoinRoomMessage = z.infer<typeof joinRoomMessageSchema>;
+export type PreviewRoomMessage = z.infer<typeof previewRoomMessageSchema>;
 export type LeaveRoomMessage = z.infer<typeof leaveRoomMessageSchema>;
 export type MicrophoneStateMessage = z.infer<typeof microphoneStateMessageSchema>;
 export type PlaybackStartedMessage = z.infer<typeof playbackStartedMessageSchema>;
@@ -102,4 +145,7 @@ export type UpdateConversationContextMessage = z.infer<
   typeof updateConversationContextMessageSchema
 >;
 export type EndConversationMessage = z.infer<typeof endConversationMessageSchema>;
+export type WebrtcSessionDescription = z.infer<typeof webrtcSessionDescriptionSchema>;
+export type WebrtcIceCandidate = z.infer<typeof webrtcIceCandidateSchema>;
+export type WebrtcSignalClientMessage = z.infer<typeof webrtcSignalClientMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

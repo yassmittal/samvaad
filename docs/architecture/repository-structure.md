@@ -17,6 +17,7 @@ hackathon-project/
 │   ├── smoke-transcribe.ts         Phase 0: WAV file → Muse Voice Transcribe → print
 │   ├── smoke-translate.ts          Phase 0: text → Muse Spark → print
 │   ├── compare-translation-context.ts  Phase 5: the demo conversation with and without context
+│   ├── compare-voices.ts           Phase 7.3: the demo lines through each voice API, as WAV files
 │   └── fixtures/                   short test recordings (our own voices)
 ├── packages/
 │   └── shared/src/
@@ -41,7 +42,9 @@ hackathon-project/
 │   │   ├── handlers/               one per client message type
 │   │   ├── services/
 │   │   │   ├── meta-transcription-stream.ts   the upstream ASR WebSocket
-│   │   │   └── meta-translation-client.ts     Muse Spark streaming calls
+│   │   │   ├── meta-translation-client.ts     Muse Spark streaming calls
+│   │   │   ├── speech-synthesis-client.ts     ElevenLabs / Cartesia speech (Phase 7.3)
+│   │   │   └── ice-servers-client.ts          STUN and Cloudflare TURN (Phase 7.5)
 │   │   ├── rooms/
 │   │   │   ├── room.ts             a room's shape; table rooms (D-008)
 │   │   │   └── room-registry.ts    in-memory rooms by code (D-004)
@@ -62,7 +65,9 @@ hackathon-project/
 │           │   ├── speech-output/  speechSynthesis queue, voice picking, iOS unlock
 │           │   ├── rooms/          create, join, QR code
 │           │   ├── conversation-context/  the context editor and panel (Phase 5)
-│           │   └── recap/          End & recap, the recap screen (Phase 5)
+│           │   ├── recap/          End & recap, the recap screen (Phase 5)
+│           │   ├── call-screen/    a room shown as a phone call: orb, start, incoming, calling, in call (Phase 7.4)
+│           │   └── original-voice/ the peer-to-peer real voice between the phones (Phase 7.5)
 │           ├── components/ui/
 │           └── lib/
 │               └── conversation-socket/   the only place that opens the WebSocket

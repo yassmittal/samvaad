@@ -1,47 +1,43 @@
 import Link from 'next/link';
 import { ApiStatusPanel } from '@/features/api-status/api-status-panel';
+import { PhoneIcon } from '@/features/call-screen/call-icons';
+import { CallScreenFrame } from '@/features/call-screen/call-screen-frame';
+import { HomeOrb } from '@/features/call-screen/home-orb';
 import { JoinRoomForm } from '@/features/rooms/join-room-form';
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-8 px-4 py-12">
-      <header className="space-y-2">
-        <h1 className="text-4xl font-semibold tracking-tight">
-          Samvaad <span className="text-stone-400">संवाद</span>
-        </h1>
-        <p className="text-stone-600">Speak your language. Hear theirs.</p>
-      </header>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-surface px-5 py-4">
-          <div>
-            <h2 className="text-lg font-medium">Talk on two phones</h2>
-            <p className="text-sm text-stone-500">
-              Each of you speaks into your own phone and hears the other in your own language.
-              Earbuds recommended.
+    <CallScreenFrame>
+      <div className="call-screen-enter flex flex-1 flex-col">
+        <header className="flex flex-col items-center gap-8 pt-10 text-center">
+          <HomeOrb />
+          <div className="space-y-3">
+            <h1 className="text-5xl font-semibold tracking-tight">
+              Samvaad <span className="text-call-muted">संवाद</span>
+            </h1>
+            <p className="mx-auto max-w-xs text-lg text-call-muted">
+              Call anyone. You speak your language, they hear theirs.
             </p>
           </div>
+        </header>
+
+        <section className="mt-auto flex flex-col gap-5 pt-10">
           <Link
             href="/room/new"
-            className="rounded-xl bg-stone-900 px-4 py-2.5 text-center font-medium text-stone-50 transition hover:bg-stone-700"
+            className="flex items-center justify-center gap-2 rounded-full bg-call-answer px-6 py-4 text-lg font-medium text-white transition hover:brightness-110 active:scale-[0.98]"
           >
-            Start a room
+            <PhoneIcon className="size-5" /> Start a call
           </Link>
           <JoinRoomForm />
-        </div>
-
-        <Link
-          href="/table"
-          className="rounded-2xl border border-stone-200 bg-surface px-5 py-4 transition hover:bg-stone-100"
-        >
-          <span className="block text-lg font-medium">Table mode</span>
-          <span className="block text-sm text-stone-500">
-            One phone between two people. Each speaks their own language.
-          </span>
-        </Link>
-      </section>
-
-      <ApiStatusPanel />
-    </main>
+          <Link
+            href="/table"
+            className="text-center text-sm text-call-muted underline-offset-4 hover:underline"
+          >
+            Sitting together? Use one phone on the table
+          </Link>
+          <ApiStatusPanel />
+        </section>
+      </div>
+    </CallScreenFrame>
   );
 }

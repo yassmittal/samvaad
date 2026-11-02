@@ -3,8 +3,15 @@ import { SAMPLE_RATE_HERTZ, SAMPLES_PER_FRAME } from '@samvaad/shared';
 const PCM_CAPTURE_PROCESSOR_URL = '/audio-worklets/pcm-capture-processor.js';
 const PCM_CAPTURE_PROCESSOR_NAME = 'pcm-capture-processor';
 
+// Enough samples for a loudness reading per animation frame (D-022).
+const LEVEL_ANALYSER_FFT_SIZE = 512;
+
 export type PcmCapture = {
   stop: () => void;
+  /** The microphone's analyser, for the call screen's orb (D-022). */
+  analyserNode: AnalyserNode;
+  /** The microphone itself, also sent to the other phone as the real voice (D-023). */
+  mediaStream: MediaStream;
 };
 
 /**
@@ -45,8 +52,13 @@ export async function startPcmCapture(
       }
     };
     sourceNode.connect(workletNode);
+    const analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = LEVEL_ANALYSER_FFT_SIZE;
+    sourceNode.connect(analyserNode);
 
     return {
+      analyserNode,
+      mediaStream,
       stop() {
         isStopped = true;
         workletNode.port.onmessage = null;

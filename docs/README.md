@@ -17,6 +17,7 @@ When a decision changes, the doc changes first.
 | 5 | [`architecture/repository-structure.md`](architecture/repository-structure.md) | Deciding where a file goes. |
 | — | [`phases/`](phases/) | One spec per phase. Build from these. |
 | — | [`deployment.md`](deployment.md) | Hosting the API on the EC2 instance and the web app on Vercel (Phase 6.1). |
+| — | [`research/real-time-calling.md`](research/real-time-calling.md) | The research behind Phase 7 (1 Nov): latency levels, what exists, call UX and design direction. Adopted by Yash on 2 Nov (D-018). |
 
 ## Three rules that override everything else
 
@@ -35,6 +36,6 @@ When a decision changes, the doc changes first.
 | 4 — Two-phone rooms (**core done**) | Sun 1 Nov | Done (30 Oct; checked on the Android phone and the laptop, QR included; latency not yet recorded in D-011) |
 | 5 — Context-aware translation and recap | Mon 2 Nov | Done (30 Oct; checked on the Android phone and the laptop, recap included; latency parked with D-011) |
 | 6 — Hosting, hardening and submission | Tue 3 Nov to Wed 4 Nov | 6.1 and 6.2 built (1 Nov: hosted at `samvaad.yashmittal.xyz`; seat keeping, room time limit, stream reopen, wake lock, error sentences, dark mode, D-017). The full mobile-data run is Yash's; 6.3 submission deferred |
-| 7 — Stretch (open weights, better voice) | Only if ahead | Not started |
+| 7 — A real call (voice, call UI, real voice) | Mon 2 Nov to Wed 4 Nov, before 6.3 | 7.1 to 7.5 built (2 Nov, D-018 to D-023), checked in two headless browsers against real Meta. Needs Yash: voice API keys and `compare:voices` (7.3), a phone test. 7.6 and 7.7 not started |
 
 Update this table as phases finish.

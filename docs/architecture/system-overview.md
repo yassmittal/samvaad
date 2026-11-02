@@ -31,6 +31,10 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
+**From Phase 7 (D-018), a room is a call:** the two phones also hold a WebRTC peer connection for
+audio only, signalled through the API, so each hears the other's real voice quietly under the
+translated one (D-023); and the translation is spoken by a voice API through the API (D-021).
+
 Table mode (Phases 1 to 3) is the same picture with one phone and one participant who
 has two languages. From Phase 4 it runs through the same room code: a table room has one
 participant, no room code, and isn't in the registry.
@@ -51,15 +55,18 @@ speaker's, and each speaker's translations into one language arrive in utterance
 5. The API starts one translation per listener language (here: English) on Muse Spark,
    streaming.
 6. Translation deltas go to **B**, whose captions fill in word by word.
-7. When the translation is complete, B's browser speaks it and reports
+7. When the translation is complete, the API asks the voice API to speak it and streams the
+   audio to B (Phase 7.3, D-021); without a voice API, B's browser speaks the text. B reports
    `playbackStartedAt`. The latency meter shows `playbackStartedAt − speechEndedAt`.
+
+Muse Spark is asked twice at once for each translation and the faster answer wins (D-020).
 
 ## Who owns what
 
 | Concern | Owner | Why |
 |---------|-------|-----|
 | Microphone capture, resampling | **Browser** (`apps/web`) | Only the browser has the mic. |
-| Speaking the translation aloud | **Listener's browser** | Meta has no TTS (D-007). Speaking on the listener's own device means it comes out of their earbuds. |
+| Speaking the translation aloud | **API → a voice API**, played by the listener's browser; the browser's own voice as fallback | Meta has no TTS (D-007). From Phase 7.3 the API streams a natural voice (D-021); it still plays on the listener's own device, so it comes out of their earbuds. |
 | The Meta API key | **API**, from env | It must never reach a browser. |
 | Transcription and translation calls | **API** | Same reason, and it can fan one utterance out to several listeners. |
 | Rooms, participants, conversation so far | **API memory** | No database (D-004). |
@@ -74,11 +81,13 @@ they need them.
 
 | Message | Phase | Meaning |
 |---------|-------|---------|
-| binary frame | 1 | 80 ms of 16 kHz mono PCM16 from this participant's mic |
+| binary frame | 1 | 80 ms of 16 kHz mono PCM16 from this participant's mic; silence while the phone speaks a translation (D-019) |
 | `start_table_session { languageCodes: [a, b] }` | 1 | Table mode: one phone, two languages |
 | `microphone_state { isOpen }` | 1 | Mic opened or closed (also sent when muted during playback) |
 | `create_room { participantName, languageCode }` | 4 | Two-phone mode |
 | `join_room { roomCode, participantName, languageCode, previousParticipantId? }` | 4 | Two-phone mode. `previousParticipantId` takes back a seat kept after a dropped socket (Phase 6, D-017) |
+| `preview_room { roomCode }` | 7.4 | Who is calling, before answering (D-022) |
+| `webrtc_signal { toParticipantId, description? \| candidate? }` | 7.5 | Setting up the peer-to-peer real voice; the API passes it to the other participant (D-023) |
 | `leave_room` | 4 | Leave the room; the socket stays open |
 | `playback_started { utteranceId }` | 2 | For the latency meter |
 | `update_conversation_context { setting, glossaryTerms: [{ term, preferredTranslation }] }` | 5 | The room's context for translation; either participant, any time (D-016) |
@@ -88,13 +97,19 @@ they need them.
 
 | Message | Phase | Meaning |
 |---------|-------|---------|
-| `session_ready { participantId, languageCodes }` | 1 | Table session started |
+| `session_ready { participantId, languageCodes, isTranslationAudioEnabled }` | 1 | Table session started. `isTranslationAudioEnabled`: the API speaks translations itself (Phase 7.3) |
 | `transcript_partial { utteranceId, text }` | 1 | Live caption, speaker only |
 | `transcript_final { utteranceId, speakerParticipantId, languageCode, text, speechEndedAtEpochMilliseconds }` | 1 | Finished sentence, everyone. `languageCode` is `null` in table mode (D-008), the speaker's language in a room |
 | `translation_delta { utteranceId, targetLanguageCode, textDelta }` | 2 | Translation arriving |
-| `translation_complete { utteranceId, targetLanguageCode, text, timings }` | 2 | Speak this now |
-| `room_joined { roomCode, participantId }` | 4 | You created or joined this room, as this participant |
+| `translation_complete { utteranceId, targetLanguageCode, text, timings, hasTranslationAudio }` | 2 | Speak this now; with `hasTranslationAudio`, its speech follows as binary frames (Phase 7.3, D-021) |
+| binary frame | 7.3 | A piece of a spoken translation: utterance id + 24 kHz mono PCM16 (`translation-audio-frame.ts`, D-021) |
+| `translation_audio_end { utteranceId, hasFailed }` | 7.3 | The spoken translation's last frame has been sent; `hasFailed`: speak the text with the phone's own voice |
+| `room_joined { roomCode, participantId, isTranslationAudioEnabled }` | 4 | You created or joined this room, as this participant |
 | `room_state { roomCode, participants }` | 4 | Who is here, their language, whether their mic is on and whether they are connected (Phase 6). Sent to everyone on every change |
+| `room_preview { roomCode, participants: [{ participantName, languageCode }] }` | 7.4 | The answer to `preview_room`: "Ramesh is calling" (D-022) |
+| `ice_servers { iceServers }` | 7.5 | After `room_joined`: free STUN, plus Cloudflare TURN when a key is set (D-023) |
+| `webrtc_signal { fromParticipantId, description? \| candidate? }` | 7.5 | The other phone's part of setting up the real voice (D-023) |
+| `utterance_receipt { utteranceId, receipt }` | 7.4 | To the speaker: `translated` (✓) once the other phone has the translation, `heard` (✓✓) once it starts speaking it (D-022) |
 | `participant_left { participantId, participantName }` | 4 | Someone left, or their socket closed and they didn't come back within 60 s (D-017) |
 | `conversation_context { setting, glossaryTerms, updatedByParticipantName }` | 5 | The room's context, to everyone on every change and to a phone when it joins |
 | `conversation_ended { participantName }` | 5 | Someone ended the conversation; recaps follow. Mics close |

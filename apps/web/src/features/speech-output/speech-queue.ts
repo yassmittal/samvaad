@@ -6,6 +6,8 @@ export type SpeechRequest = {
   languageCode: LanguageCode;
   /** Spoken again from the bubble's repeat button, so it has no latency to report. */
   isRepeat: boolean;
+  /** The API streams this translation's speech (D-021); otherwise the browser voice speaks it. */
+  hasTranslationAudio: boolean;
 };
 
 type SpeakEvents = {

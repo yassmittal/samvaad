@@ -67,6 +67,27 @@ describe('createMetaTranslationClient', () => {
     );
   });
 
+  test('races identical requests and keeps the first to answer, aborting the other (D-020)', async () => {
+    fakeMuseSparkServer = startFakeMuseSparkServer({
+      createScriptedTranslation: (_requestBody, requestIndex) =>
+        requestIndex === 0
+          ? { chunks: ['slow'], delayBeforeFirstChunkMilliseconds: 80 }
+          : { chunks: ['fast'], delayBeforeFirstChunkMilliseconds: 5 },
+    });
+    const client = createMetaTranslationClient({
+      chatCompletionsUrl: fakeMuseSparkServer.chatCompletionsUrl,
+      modelId: 'muse-spark-1.3',
+      metaApiKey: 'test-key',
+      logger: Fastify({ logger: false }).log,
+      parallelRequestCount: 2,
+    });
+
+    expect(await collectText(client.streamTranslation(input))).toEqual(['fast']);
+    expect(fakeMuseSparkServer.receivedRequestBodies).toHaveLength(2);
+    await Bun.sleep(20);
+    expect(fakeMuseSparkServer.abortedRequestIndexes).toContain(0);
+  });
+
   test('gives up after the timeout', async () => {
     const client = createClientFor({
       chunks: ['too late'],

@@ -4,6 +4,7 @@ import { type ConversationUtterance, selectConversationMemory } from './conversa
 function createUtterance(index: number, overrides: Partial<ConversationUtterance> = {}) {
   return {
     utteranceId: `utterance-${index}`,
+    speakerParticipantId: 'participant-ramesh',
     speakerName: 'Ramesh',
     languageCode: 'hi',
     transcript: `transcript ${index}`,

@@ -46,7 +46,7 @@ while the phone speaks, so it never translates itself. **Table mode is done.**
 - Test with `bun run dev:phone` (HTTP/2 tunnels, see Phase 1 build notes).
 
 ## Out of scope
-Rooms (Phase 4). A better voice than the browser's (Phase 7).
+Rooms (Phase 4). A better voice than the browser's (Phase 7.3, D-021).
 
 ## Definition of done
 - [x] A 2-minute, turn-taking Hindi ↔ English conversation on one Android phone works with

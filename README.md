@@ -10,8 +10,9 @@ and **Muse Spark** (context-aware translation).
 
 > Status: Phases 0 to 5 built: table mode, two-phone rooms, context-aware translation and the
 > end-of-conversation recap. Phase 6: hosted at https://samvaad.yashmittal.xyz, with reconnects,
-> a room time limit, a screen wake lock and dark mode. Submission comes later. See
-> [`docs/README.md`](docs/README.md).
+> a room time limit, a screen wake lock and dark mode. Phase 7 (2 Nov): a room is now a call:
+> answer from a WhatsApp link, a natural translated voice, the other person's real voice
+> underneath. Submission comes later. See [`docs/README.md`](docs/README.md).
 
 ## Layout
 
@@ -77,6 +78,20 @@ bun run smoke:transcribe --keyword "Blue Pottery" --keyword Jaipur --verbose
 
 The fixtures in `scripts/fixtures/` are placeholders made with macOS voices. See the
 [README there](scripts/fixtures/README.md) to swap in real recordings.
+
+## A natural voice (Phase 7.3)
+
+Phones speak translations with their own browser voice unless the API is given a voice API key
+(D-021). Add `ELEVENLABS_API_KEY` and/or `CARTESIA_API_KEY` to `apps/api/.env`, then:
+
+```sh
+bun run compare:voices --list     # each provider's voices
+bun run compare:voices            # the demo lines in each provider's first voice, as WAV files
+bun run compare:voices --provider elevenlabs --voice <id> --voice <id>
+```
+
+Listen, pick, and set `SPEECH_PROVIDER` and `SPEECH_VOICE_IDS` (the caller's voice first) in
+`apps/api/.env`.
 
 ## Why context matters (Phase 5)
 

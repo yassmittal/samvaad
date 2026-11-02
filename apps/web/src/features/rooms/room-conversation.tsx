@@ -1,259 +1,255 @@
 'use client';
 
-import { SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
-import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { CallScreenFrame } from '../call-screen/call-screen-frame';
+import { CallSheet } from '../call-screen/call-sheet';
+import { CallUnavailableScreen } from '../call-screen/call-unavailable-screen';
+import { CallingScreen } from '../call-screen/calling-screen';
+import { InCallScreen } from '../call-screen/in-call-screen';
+import { IncomingCallScreen } from '../call-screen/incoming-call-screen';
+import { playCallCue } from '../call-screen/play-call-cue';
+import { StartCallScreen } from '../call-screen/start-call-screen';
+import { useCallMicrophone } from '../call-screen/use-call-microphone';
 import { CaptionList } from '../conversation/caption-list';
-import { isWaitingForTranslation } from '../conversation/conversation-reducer';
-import { ConversationStatus } from '../conversation/conversation-status';
-import { LatencyMeter } from '../conversation/latency-meter';
-import { MicrophoneButton } from '../conversation/microphone-button';
+import { findConversationProblemText } from '../conversation/conversation-status';
 import { useScreenWakeLock } from '../conversation/use-screen-wake-lock';
-import {
-  ConversationContextChip,
-  ConversationContextPanel,
-} from '../conversation-context/conversation-context-panel';
-import { EndConversationButton } from '../recap/end-conversation-button';
+import { ConversationContextPanel } from '../conversation-context/conversation-context-panel';
+import { isOfferingParticipant } from '../original-voice/is-offering-participant';
+import { useOriginalVoice } from '../original-voice/use-original-voice';
 import { RecapView } from '../recap/recap-view';
-import { ParticipantList } from './participant-list';
-import { RoomEntryForm } from './room-entry-form';
-import { ShareRoomPanel } from './share-room-panel';
 import { type RoomJoinFailureCode, useRoomConversation } from './use-room-conversation';
 
 const JOIN_FAILURE_TEXT = {
-  ROOM_NOT_FOUND: 'This room has closed, or the code is wrong. Rooms close when everyone leaves.',
-  ROOM_FULL: 'This room already has two people in it.',
+  ROOM_NOT_FOUND: 'This call has ended, or the link is wrong. Calls close when everyone leaves.',
+  ROOM_FULL: 'This call already has two people in it.',
 } as const satisfies Record<RoomJoinFailureCode, string>;
 
-function RoomUnavailable({ joinFailureCode }: { joinFailureCode: RoomJoinFailureCode }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <p role="alert" className="text-lg text-stone-700">
-        {JOIN_FAILURE_TEXT[joinFailureCode]}
-      </p>
-      {/* A full page load, so the new room starts with a fresh socket and state. */}
-      <a
-        href="/room/new"
-        className="rounded-2xl bg-stone-900 px-5 py-3 text-center text-lg font-medium text-stone-50"
-      >
-        Start a new room
-      </a>
-      <Link href="/" className="text-center text-stone-500 underline">
-        Home
-      </Link>
-    </div>
-  );
-}
+type RoomConversation = ReturnType<typeof useRoomConversation>;
+type OpenSheet = 'transcript' | 'context' | null;
 
-function RoomScreenHeading({ roomCode }: { roomCode: string | null }) {
-  return (
-    <header className="space-y-1">
-      <Link href="/" className="text-xl font-semibold tracking-tight">
-        Samvaad
-      </Link>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {roomCode === null ? 'Start a room' : `Join room ${roomCode}`}
-      </h1>
-      <p className="text-stone-600">
-        {roomCode === null
-          ? 'Each of you talks into your own phone and hears the other in your own language.'
-          : 'Talk into this phone; hear the other person in your own language.'}
-      </p>
-    </header>
-  );
-}
-
-/** `/room/new` (create) and `/room/ABC123` (join): the entry form, then the conversation. */
+/**
+ * `/room/new` (start a call) and `/room/ABC123` (answer one): a room shown as a phone call
+ * (D-018, D-022). Start or Answer, then the calling screen until both are in, then the call.
+ */
 export function RoomConversation({ requestedRoomCode }: { requestedRoomCode: string | null }) {
   const roomConversation = useRoomConversation({ requestedRoomCode });
   const { stage, socketStatus } = roomConversation;
+  const isConnected = socketStatus === 'open';
 
   if (stage === 'in_room') {
-    return <RoomConversationInRoom roomConversation={roomConversation} />;
+    return <RoomCall roomConversation={roomConversation} />;
+  }
+  if (stage === 'unavailable' && roomConversation.joinFailureCode !== null) {
+    return <CallUnavailableScreen text={JOIN_FAILURE_TEXT[roomConversation.joinFailureCode]} />;
+  }
+  if (stage === 'joining') {
+    return (
+      <CallScreenFrame>
+        <p className="m-auto animate-pulse text-call-muted">
+          {requestedRoomCode === null ? 'Starting the call…' : 'Connecting…'}
+        </p>
+      </CallScreenFrame>
+    );
+  }
+  if (requestedRoomCode === null) {
+    return <StartCallScreen isConnected={isConnected} onStart={roomConversation.enterRoom} />;
   }
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-8 px-4 py-12">
-      <RoomScreenHeading roomCode={requestedRoomCode} />
-      {stage === 'unavailable' && roomConversation.joinFailureCode !== null && (
-        <RoomUnavailable joinFailureCode={roomConversation.joinFailureCode} />
-      )}
-      {stage === 'entering' && (
-        <RoomEntryForm
-          roomCode={requestedRoomCode}
-          isConnected={socketStatus === 'open'}
-          onSubmit={roomConversation.enterRoom}
-        />
-      )}
-      {stage === 'joining' && (
-        <p className="animate-pulse text-center text-stone-500">
-          {requestedRoomCode === null ? 'Creating the room…' : 'Joining…'}
-        </p>
-      )}
-    </main>
+    <IncomingCallScreen
+      roomPreview={roomConversation.roomPreview}
+      isConnected={isConnected}
+      onAnswer={(roomEntry) => roomConversation.enterRoom(roomEntry, null)}
+    />
   );
 }
 
-function RoomConversationInRoom({
-  roomConversation,
-}: {
-  roomConversation: ReturnType<typeof useRoomConversation>;
-}) {
+/** When the other person first connected, for the call timer, with a cue each time they do. */
+function useCallStart(isInCall: boolean): number | null {
+  const [callStartedAtEpochMilliseconds, setCallStartedAtEpochMilliseconds] = useState<
+    number | null
+  >(null);
+  const wasInCallRef = useRef(false);
+
+  useEffect(() => {
+    if (isInCall === wasInCallRef.current) {
+      return;
+    }
+    wasInCallRef.current = isInCall;
+    playCallCue(isInCall ? 'connected' : 'ended');
+    if (isInCall) {
+      setCallStartedAtEpochMilliseconds((startedAt) => startedAt ?? Date.now());
+    }
+  }, [isInCall]);
+
+  return callStartedAtEpochMilliseconds;
+}
+
+function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) {
+  const router = useRouter();
   const {
     room,
     participantId,
+    participantName,
+    languageCode,
     departedParticipantName,
     captions,
     latestError,
     conversationContext,
     contextUpdatedByParticipantName,
     recap,
-    languageCode,
     socketStatus,
     microphoneStatus,
     isSpeaking,
     hasVoiceForLanguage,
-    toggleMicrophone,
     repeatTranslation,
     updateConversationContext,
     endConversation,
     dismissRecap,
-    retryConnection,
     leaveRoom,
+    openMicrophoneCapture,
+    setMicrophoneOn,
+    findMicrophoneAnalyserNode,
+    findMicrophoneStream,
+    isSendingRealAudio,
+    iceServers,
+    sendClientMessage,
+    subscribeToWebrtcSignals,
   } = roomConversation;
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [isContextOpen, setIsContextOpen] = useState(false);
+  const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
   useScreenWakeLock();
-  if (room === null || languageCode === null) {
+
+  const otherParticipant =
+    room?.participants.find((participant) => participant.participantId !== participantId) ?? null;
+  const isInCall = otherParticipant?.isConnected === true;
+  const callStartedAtEpochMilliseconds = useCallStart(isInCall);
+  const originalVoice = useOriginalVoice({
+    otherParticipantId:
+      isInCall && socketStatus === 'open' && recap === null
+        ? (otherParticipant?.participantId ?? null)
+        : null,
+    isOfferer: isOfferingParticipant(room?.participants ?? [], participantId),
+    iceServers,
+    microphoneStatus,
+    findMicrophoneStream,
+    isSendingRealAudio,
+    sendSignal: sendClientMessage,
+    subscribeToSignals: subscribeToWebrtcSignals,
+  });
+  const { isMuted, toggleMute } = useCallMicrophone({
+    isInCall,
+    isRecapOpen: recap !== null,
+    socketStatus,
+    microphoneStatus,
+    openMicrophoneCapture,
+    setMicrophoneOn,
+  });
+
+  if (room === null || languageCode === null || participantName === null) {
     return null;
   }
-  const isAlone = room.participants.length < 2;
-  // The room keeps a dropped phone's seat for a minute (D-017).
-  const disconnectedParticipant = room.participants.find(
-    (participant) => participant.participantId !== participantId && !participant.isConnected,
-  );
-  const language = SUPPORTED_LANGUAGE_BY_CODE[languageCode];
   const isConnected = socketStatus === 'open';
-  const hasFinishedUtterance = captions.some((caption) => caption.isFinal);
+  const problemText = findConversationProblemText({ socketStatus, microphoneStatus, latestError });
+
+  function leaveCall(): void {
+    leaveRoom();
+    router.push('/');
+  }
+
+  // Ending with something said takes both phones to the recap (D-016); with nothing said, just hang up.
+  function endCall(): void {
+    if (captions.some((caption) => caption.isFinal)) {
+      endConversation();
+      return;
+    }
+    leaveCall();
+  }
 
   return (
-    <main className="mx-auto flex h-dvh w-full max-w-xl flex-col">
-      <header className="flex flex-col gap-3 border-b border-stone-200 px-4 pb-4 pt-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-semibold tracking-tight">Samvaad</span>
-            <button
-              type="button"
-              onClick={() => setIsShareOpen((isOpen) => !isOpen)}
-              aria-expanded={isShareOpen || isAlone}
-              className="rounded-full bg-stone-100 px-2.5 py-0.5 font-mono text-sm tracking-widest text-stone-700 hover:bg-stone-200"
-            >
-              {room.roomCode}
-            </button>
-            <ConversationContextChip
-              conversationContext={conversationContext}
-              isOpen={isContextOpen}
-              onToggle={() => setIsContextOpen((isOpen) => !isOpen)}
-            />
-          </div>
-          <LatencyMeter captions={captions} />
-        </div>
-        <ParticipantList participants={room.participants} participantId={participantId} />
-        {disconnectedParticipant && (
-          <p className="text-sm text-amber-700 dark:text-amber-400">
-            {disconnectedParticipant.participantName} lost the connection. Waiting for them to come
-            back…
-          </p>
-        )}
-        {isAlone && (
-          <p className="text-sm text-stone-500">
-            {departedParticipantName
-              ? `${departedParticipantName} left. They can come back with the same code.`
-              : 'Waiting for the other person to join.'}
-          </p>
-        )}
-        {!hasVoiceForLanguage(languageCode) && (
-          <p className="text-sm text-amber-700 dark:text-amber-400">
-            Captions only: this phone has no {language.englishName} voice.
-          </p>
-        )}
-      </header>
+    <>
+      {otherParticipant === null ? (
+        <CallingScreen
+          roomCode={room.roomCode}
+          participantName={participantName}
+          languageCode={languageCode}
+          departedParticipantName={departedParticipantName}
+          problemText={problemText}
+          onEnd={leaveCall}
+        />
+      ) : (
+        <InCallScreen
+          otherParticipantName={otherParticipant.participantName}
+          otherLanguageCode={otherParticipant.languageCode}
+          languageCode={languageCode}
+          callStartedAtEpochMilliseconds={callStartedAtEpochMilliseconds ?? Date.now()}
+          captions={captions}
+          isSpeaking={isSpeaking}
+          isReconnecting={!isConnected || !otherParticipant.isConnected}
+          originalVoice={
+            originalVoice.isConnected
+              ? {
+                  isOn: originalVoice.isOriginalVoiceOn,
+                  isOtherPersonSpeaking: originalVoice.isOtherPersonSpeaking,
+                  findAnalyserNode: originalVoice.findRemoteAnalyserNode,
+                  onToggle: originalVoice.toggleOriginalVoice,
+                }
+              : null
+          }
+          isMuted={isMuted}
+          hasVoice={hasVoiceForLanguage(languageCode)}
+          problemText={
+            problemText ??
+            (otherParticipant.isConnected
+              ? null
+              : `${otherParticipant.participantName} lost the connection. Waiting for them…`)
+          }
+          findMicrophoneAnalyserNode={findMicrophoneAnalyserNode}
+          onToggleMute={toggleMute}
+          onOpenTranscript={() => setOpenSheet('transcript')}
+          onOpenContext={() => setOpenSheet('context')}
+          onEnd={endCall}
+        />
+      )}
 
-      <section className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-        {recap !== null ? (
+      {recap !== null && (
+        <CallSheet title="Call ended" onClose={dismissRecap}>
           <RecapView
             recap={recap}
             languageCodes={[languageCode]}
             isConnected={isConnected}
             onRetry={endConversation}
-            onBack={dismissRecap}
+            onBack={() => {
+              dismissRecap();
+              // Inside the tap, so iOS lets the microphone start again (D-007).
+              void openMicrophoneCapture();
+            }}
             onExit={leaveRoom}
           />
-        ) : (
-          <>
-            {isContextOpen && (
-              <ConversationContextPanel
-                conversationContext={conversationContext}
-                contextUpdatedByParticipantName={contextUpdatedByParticipantName}
-                isSharedWithOthers
-                isDisabled={!isConnected}
-                onSave={updateConversationContext}
-                onClose={() => setIsContextOpen(false)}
-              />
-            )}
-            {(isAlone || isShareOpen) && <ShareRoomPanel roomCode={room.roomCode} />}
-            <CaptionList
-              captions={captions}
-              listenerLanguageCode={languageCode}
-              emptyStateText={`Tap the microphone and speak ${language.englishName}. The other phone hears it in their language, and you hear their replies in yours.`}
-              hasVoiceForLanguage={hasVoiceForLanguage}
-              onRepeat={repeatTranslation}
-            />
-          </>
-        )}
-      </section>
-
-      {recap === null && (
-        <footer className="flex flex-col items-center gap-3 border-t border-stone-200 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-          <ConversationStatus
-            socketStatus={socketStatus}
-            microphoneStatus={microphoneStatus}
-            isSpeaking={isSpeaking}
-            isTranslating={isWaitingForTranslation(captions, languageCode)}
-            latestError={latestError}
-          />
-          {(socketStatus === 'closed' || socketStatus === 'replaced') && (
-            <button
-              type="button"
-              onClick={retryConnection}
-              className="rounded-full bg-stone-200 px-4 py-1.5 text-sm font-medium hover:bg-stone-300"
-            >
-              Try again
-            </button>
-          )}
-          <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center">
-            <div className="justify-self-start">
-              <EndConversationButton
-                isDisabled={!isConnected || !hasFinishedUtterance}
-                isSharedWithOthers={!isAlone}
-                onEnd={endConversation}
-              />
-            </div>
-            <MicrophoneButton
-              microphoneStatus={microphoneStatus}
-              isSpeaking={isSpeaking}
-              isDisabled={!isConnected}
-              onToggle={() => void toggleMicrophone()}
-            />
-            <Link
-              href="/"
-              onClick={leaveRoom}
-              className="justify-self-end rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 hover:bg-stone-100"
-            >
-              Leave
-            </Link>
-          </div>
-        </footer>
+        </CallSheet>
       )}
-    </main>
+      {recap === null && openSheet === 'transcript' && (
+        <CallSheet title="Transcript" onClose={() => setOpenSheet(null)}>
+          <CaptionList
+            captions={captions}
+            listenerLanguageCode={languageCode}
+            emptyStateText="Nothing said yet. Everything you both say appears here, in both languages."
+            hasVoiceForLanguage={hasVoiceForLanguage}
+            onRepeat={repeatTranslation}
+          />
+        </CallSheet>
+      )}
+      {recap === null && openSheet === 'context' && (
+        <CallSheet title="Context" onClose={() => setOpenSheet(null)}>
+          <ConversationContextPanel
+            conversationContext={conversationContext}
+            contextUpdatedByParticipantName={contextUpdatedByParticipantName}
+            isSharedWithOthers
+            isDisabled={!isConnected}
+            onSave={updateConversationContext}
+            onClose={() => setOpenSheet(null)}
+          />
+        </CallSheet>
+      )}
+    </>
   );
 }

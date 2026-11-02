@@ -14,9 +14,10 @@ detailed spec in [`phases/`](phases/).
  Phase 3  Spoken translation ─────────┘  ← TABLE MODE DONE: one phone, two languages
  Phase 4  Two-phone rooms ────────────   ← CORE DONE: the pitch works end to end
  Phase 5  Context and recap ──────────   ← the Muse Spark differentiator
- Phase 6  Hosting, hardening, submit ─   ← hackathon-ready
+ Phase 6  Hosting, hardening ──────────   ← 6.1 and 6.2 done (1 Nov)
+ Phase 7  A real call ────────────────   ← natural voice, call UI, the real voice (2 to 4 Nov)
+ Phase 6.3 Submission ────────────────   ← hackathon-ready
  ──────────────────────────────────────────────── submission line
- Phase 7  Stretch: open weights, better voice, camera
 ```
 
 | Phase | Name | Size | Planned (IST) | Demo at the end |
@@ -28,13 +29,13 @@ detailed spec in [`phases/`](phases/).
 | 4 | [Two-phone rooms](phases/phase-04-two-phone-rooms.md) | M | Sun 1 Nov | Two phones, two people, each hears the other in their own language. **Core done** |
 | 5 | [Context and recap](phases/phase-05-context-and-recap.md) | M | Mon 2 Nov | Names and product terms come out right; the conversation ends with a recap in both languages |
 | 6 | [Hosting, hardening and submission](phases/phase-06-hosting-and-submission.md) | M | Tue 3 Nov – Wed 4 Nov | The demo runs on the hosted app; video recorded; submitted |
-| 7 | [Stretch](phases/phase-07-stretch.md) | — | Only if ahead | Pick from a list |
+| 7 | [A real call](phases/phase-07-real-call.md) | L | Mon 2 Nov – Wed 4 Nov AM, before 6.3 | Answer a call from a WhatsApp link; natural voices; the other person's real voice underneath (D-018) |
 
 Sizes: **S** ≈ half a day, **M** ≈ one day of focused work.
 
 **If time runs short:** protect Phases 0 to 4 and the hosting part of Phase 6, in that
 order. Then cut Phase 5 down to "conversation memory only" (drop the glossary UI and the
-recap). Phase 7 is the first thing to drop, then Phase 6's polish.
+recap). Phase 7 is built in parts (7.1 to 7.7) and cut from the bottom; 6.3 (submission) is never cut.
 
 ## How to run a phase
 
@@ -62,6 +63,6 @@ recap). Phase 7 is the first thing to drop, then Phase 6's polish.
 | The demo story: who is talking to whom | Phase 5 (glossary and recap are shaped by it) | **Answered (Yash, 30 Oct):** the default. Ramesh Kumawat, a Jaipur blue pottery exporter (Hindi), and Siobhan Doyle of Doyle Home, London (English), agree an order (phase 5 spec) |
 | Is the Meta API key and $150 credit claimed and working? | Phase 0 | **Answered (29 Oct):** the key works; both smoke scripts ran |
 | Where the API runs | Phase 6 | **Answered (Yash, 1 Nov):** the EC2 instance at `samvaad-api.yashmittal.xyz`, the web app on Vercel at `samvaad.yashmittal.xyz` (D-010, [`deployment.md`](deployment.md)) |
-| A better voice than the browser's | Phase 7 | Stay on browser `speechSynthesis` |
+| A better voice than the browser's | Phase 7 | **Answered (Yash, 2 Nov):** yes, a streaming voice API if free tiers cover the demo (D-021); provider picked after `compare-voices` |
 | Team or solo | — | Solo, Indie Developer track |
 | Test devices | Phase 1 | **Answered (Yash, 29 Oct):** one Android phone. The laptop browser is the second participant in Phase 4. iPhone only if one can be borrowed before Phase 6 |

@@ -1,9 +1,11 @@
 import {
   type ClientMessage,
   clientMessageSchema,
+  decodeTranslationAudioFrame,
   SEAT_TAKEN_OVER_CLOSE_CODE,
   type ServerMessage,
   serverMessageSchema,
+  type TranslationAudioFrame,
 } from '@samvaad/shared';
 
 const CONVERSATION_SOCKET_PATH = '/v1/conversation';
@@ -24,6 +26,8 @@ export type ConversationSocketStatus =
 type ConversationSocketClientOptions = {
   apiBaseUrl: string;
   onServerMessage: (message: ServerMessage) => void;
+  /** A piece of a spoken translation, sent as a binary frame (D-021). */
+  onTranslationAudioFrame: (frame: TranslationAudioFrame) => void;
   onStatusChange: (status: ConversationSocketStatus) => void;
 };
 
@@ -43,12 +47,14 @@ export function createConversationSocketUrl(apiBaseUrl: string): string {
 
 /**
  * The only place the web app opens a WebSocket. Every message in or out is checked against
- * the shared schema. A dropped socket is retried a few times with growing delays; the API
- * forgets a connection's session when it closes, so listeners re-send it on `open`.
+ * the shared schema; a binary frame from the API is a piece of a spoken translation (D-021).
+ * A dropped socket is retried a few times with growing delays; the API forgets a connection's
+ * session when it closes, so listeners re-send it on `open`.
  */
 export function createConversationSocketClient({
   apiBaseUrl,
   onServerMessage,
+  onTranslationAudioFrame,
   onStatusChange,
 }: ConversationSocketClientOptions): ConversationSocketClient {
   const socketUrl = createConversationSocketUrl(apiBaseUrl);
@@ -97,6 +103,15 @@ export function createConversationSocketClient({
     });
 
     connectingSocket.addEventListener('message', (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        const translationAudioFrame = decodeTranslationAudioFrame(new Uint8Array(event.data));
+        if (translationAudioFrame === null) {
+          console.warn('ignored a binary frame that is not translation audio');
+          return;
+        }
+        onTranslationAudioFrame(translationAudioFrame);
+        return;
+      }
       if (typeof event.data !== 'string') {
         return;
       }

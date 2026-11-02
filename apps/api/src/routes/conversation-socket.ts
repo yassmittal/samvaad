@@ -43,6 +43,11 @@ export async function conversationSocketRoutes(server: FastifyInstance) {
           socket.send(JSON.stringify(message));
         }
       },
+      sendBinaryFrame(frame) {
+        if (socket.readyState === socket.OPEN) {
+          socket.send(frame, { binary: true });
+        }
+      },
       closeSocket(closeCode, reason) {
         socket.close(closeCode, reason);
       },

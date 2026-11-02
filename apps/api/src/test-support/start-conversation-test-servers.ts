@@ -5,6 +5,7 @@ import {
   startFakeMetaTranscriptionServer,
 } from './fake-meta-transcription-server';
 import { type ScriptedTranslation, startFakeMuseSparkServer } from './fake-muse-spark-server';
+import { type ScriptedSpeech, startFakeSpeechServer } from './fake-speech-server';
 import { connectTestBrowserClient, type TestBrowserClient } from './test-browser-client';
 import { waitForCondition } from './wait-for-condition';
 
@@ -16,7 +17,11 @@ type ConversationTestServersOptions = {
   ) => ScriptedTranslation;
   /** More API env, such as a short `PARTICIPANT_RECONNECT_GRACE_SECONDS`. */
   env?: Record<string, string>;
+  /** Scripts the fake voice APIs; only used when `env` sets a `SPEECH_PROVIDER` (D-021). */
+  createScriptedSpeech?: Parameters<typeof startFakeSpeechServer>[0]['createScriptedSpeech'];
 };
+
+const DEFAULT_SCRIPTED_SPEECH: ScriptedSpeech = { chunks: [[1, 0, 2, 0]] };
 
 const DEFAULT_SCRIPTED_TRANSLATION: ScriptedTranslation = { chunks: ['en\n', 'Translated.'] };
 
@@ -27,10 +32,17 @@ export async function startConversationTestServers(options: ConversationTestServ
     createScriptedTranslation:
       options.createScriptedTranslation ?? (() => DEFAULT_SCRIPTED_TRANSLATION),
   });
+  const fakeSpeechServer = startFakeSpeechServer({
+    createScriptedSpeech: options.createScriptedSpeech ?? (() => DEFAULT_SCRIPTED_SPEECH),
+  });
   const env = parseApiEnv({
     META_API_KEY: 'test-key',
     META_TRANSCRIPTION_URL: fakeMetaServer.url,
     META_CHAT_COMPLETIONS_URL: fakeMuseSparkServer.chatCompletionsUrl,
+    ELEVENLABS_API_BASE_URL: fakeSpeechServer.apiBaseUrl,
+    CARTESIA_API_BASE_URL: fakeSpeechServer.apiBaseUrl,
+    // One request per translation, so tests can script each by its index; the race has its own tests.
+    TRANSLATION_PARALLEL_REQUEST_COUNT: '1',
     ...options.env,
   });
   const server = await buildServer({ env, isLoggingEnabled: false });
@@ -42,6 +54,7 @@ export async function startConversationTestServers(options: ConversationTestServ
   return {
     fakeMetaServer,
     fakeMuseSparkServer,
+    fakeSpeechServer,
     browser,
 
     /** Another phone on the same API, for rooms. Closed by `stop`. */
@@ -79,6 +92,7 @@ export async function startConversationTestServers(options: ConversationTestServ
       await server.close();
       fakeMetaServer.stop();
       fakeMuseSparkServer.stop();
+      fakeSpeechServer.stop();
     },
   };
 }

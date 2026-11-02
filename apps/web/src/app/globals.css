@@ -3,6 +3,18 @@
 @theme {
   /* Cards, caption bubbles and inputs. White on the stone-50 page in light mode. */
   --color-surface: #fff;
+  /* Anek Devanagari draws Devanagari and Latin as one family (D-022); set in layout.tsx. */
+  --font-sans: var(--font-anek), ui-sans-serif, system-ui, sans-serif;
+  /* The call screen (D-022): dark like every phone's call screen, a warm hue for you and a
+     cool one for the other person. Neutral, not stone, so dark mode's swap leaves it alone. */
+  --color-call-background: #0d0d0f;
+  --color-call-surface: #1a1a1e;
+  --color-call-text: #f4f1ec;
+  --color-call-muted: #9a978f;
+  --color-call-you: oklch(80% 0.16 70);
+  --color-call-them: oklch(70% 0.15 255);
+  --color-call-answer: oklch(68% 0.17 150);
+  --color-call-end: oklch(60% 0.21 25);
 }
 
 :root {
@@ -33,4 +45,238 @@
 
 body {
   @apply bg-stone-50 text-stone-900 antialiased;
+}
+
+/* ── The call screen's orb (D-022) ─────────────────────────────────────────────────────────
+   One sphere carries the call's state. Its two colours are registered properties, so a state
+   change cross-fades them; `--orb-level` (0 to 1) is the voice's loudness, set every frame. */
+
+@property --orb-color-first {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(72% 0.06 290);
+}
+
+@property --orb-color-second {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(62% 0.05 250);
+}
+
+@property --orb-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.call-orb {
+  --orb-level: 0;
+  --orb-color-first: oklch(72% 0.06 290);
+  --orb-color-second: oklch(62% 0.05 250);
+  --orb-spin-duration: 14s;
+  position: relative;
+  aspect-ratio: 1;
+  transition:
+    --orb-color-first 700ms ease,
+    --orb-color-second 700ms ease;
+  animation: orb-breathe 5s ease-in-out infinite;
+}
+
+.call-orb[data-state="you_speaking"] {
+  --orb-color-first: var(--color-call-you);
+  --orb-color-second: oklch(70% 0.19 45);
+}
+
+.call-orb[data-state="translating_to_them"] {
+  --orb-color-first: var(--color-call-you);
+  --orb-color-second: var(--color-call-them);
+  --orb-spin-duration: 2.2s;
+}
+
+.call-orb[data-state="translating_to_you"] {
+  --orb-color-first: var(--color-call-them);
+  --orb-color-second: var(--color-call-you);
+  --orb-spin-duration: 2.2s;
+}
+
+.call-orb[data-state="they_speaking"],
+.call-orb[data-state="their_translation_playing"] {
+  --orb-color-first: var(--color-call-them);
+  --orb-color-second: oklch(62% 0.18 290);
+}
+
+.call-orb[data-state="reconnecting"] {
+  --orb-color-first: oklch(55% 0 0);
+  --orb-color-second: oklch(35% 0 0);
+  animation-duration: 9s;
+}
+
+.call-orb-halo,
+.call-orb-body,
+.call-orb-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+}
+
+.call-orb-halo {
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--orb-color-first) 55%, transparent) 0%,
+    transparent 68%
+  );
+  filter: blur(28px);
+  transform: scale(calc(1.15 + var(--orb-level) * 0.45));
+  opacity: calc(0.55 + var(--orb-level) * 0.45);
+  transition:
+    transform 90ms linear,
+    opacity 90ms linear;
+}
+
+.call-orb-body {
+  inset: 14%;
+  overflow: hidden;
+  box-shadow:
+    inset 0 -18px 40px rgb(0 0 0 / 0.35),
+    0 0 60px color-mix(in oklch, var(--orb-color-second) 45%, transparent);
+  transform: scale(calc(1 + var(--orb-level) * 0.16));
+  transition: transform 90ms linear;
+}
+
+/* The colours swirl on a blurred, oversized layer inside the sphere, so no seam shows. */
+.call-orb-body::before {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(
+    from var(--orb-angle) at 42% 58%,
+    var(--orb-color-first),
+    var(--orb-color-second),
+    var(--orb-color-first)
+  );
+  filter: blur(18px);
+  animation: orb-spin var(--orb-spin-duration) linear infinite;
+}
+
+.call-orb-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.4), transparent 42%),
+    radial-gradient(circle at 50% 120%, rgb(0 0 0 / 0.35), transparent 60%);
+}
+
+.call-orb-sheen {
+  inset: 22% 30% 52% 26%;
+  background: radial-gradient(ellipse, rgb(255 255 255 / 0.45), transparent 70%);
+  filter: blur(6px);
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    scale: 0.97;
+  }
+  50% {
+    scale: 1.03;
+  }
+}
+
+@keyframes orb-spin {
+  to {
+    --orb-angle: 360deg;
+  }
+}
+
+/* A translation's words fade and sharpen in as they arrive (D-022). */
+.caption-word {
+  display: inline-block;
+  white-space: pre;
+  animation: caption-word-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes caption-word-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    translate: 0 0.25em;
+  }
+}
+
+/* Rings around an avatar while a call rings or waits. */
+.call-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid currentColor;
+  animation: call-ripple 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+
+.call-ripple:nth-child(2) {
+  animation-delay: 0.85s;
+}
+
+.call-ripple:nth-child(3) {
+  animation-delay: 1.7s;
+}
+
+@keyframes call-ripple {
+  from {
+    opacity: 0.55;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 1.9;
+  }
+}
+
+.call-screen-enter {
+  animation: call-screen-enter 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes call-screen-enter {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+/* Sheets over the call slide up on a spring-like curve; the backdrop fades in. */
+.call-sheet-enter {
+  animation: call-sheet-enter 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes call-sheet-enter {
+  from {
+    translate: 0 100%;
+  }
+}
+
+.call-backdrop-enter {
+  animation: call-backdrop-enter 260ms ease both;
+}
+
+@keyframes call-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call-orb,
+  .call-orb-body::before,
+  .call-ripple,
+  .caption-word,
+  .call-screen-enter,
+  .call-sheet-enter,
+  .call-backdrop-enter {
+    animation: none;
+  }
+  .call-orb-halo,
+  .call-orb-body {
+    transform: none;
+  }
 }

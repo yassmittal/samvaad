@@ -6,6 +6,8 @@ export const CONVERSATION_MEMORY_UTTERANCE_COUNT = 8;
 /** One finished utterance, kept by the room for translation prompts and the recap (D-004, D-016). */
 export type ConversationUtterance = {
   utteranceId: string;
+  /** Who said it, to send them its receipts (D-022). Kept across a reconnect (D-017). */
+  speakerParticipantId: string;
   /** `null` at a table, where one phone hears both people. */
   speakerName: string | null;
   /** Known in a room (D-015); `null` at a table (D-008). */

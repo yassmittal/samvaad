@@ -55,8 +55,8 @@ It's built first (Phases 1 to 3), because it needs no rooms.
 |------|-------|----------------|
 | Speech → text | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`, realtime WebSocket) | Streaming partials, server endpointing (it knows when a sentence ended), 25 validated languages including Hindi, Tamil, Telugu, Kannada, Marathi and Bengali, code-switching through a language bias list, and keyword biasing for names. |
 | Translate | **Muse Spark** (Chat Completions, streaming) | Translates a sentence *with* the conversation so far, a glossary and the setting, so names, terms and tone stay right. Also writes the end-of-conversation recap. |
-| Text → speech | **Not Meta.** The browser's `speechSynthesis` first (D-007) | Meta's API has no speech output model. |
-| Optional | **Muse Spark Open** through Baseten (Phase 7) | The "Best Build on Meta Open Weight Models" bonus. |
+| Text → speech | **Not Meta.** A streaming voice API (ElevenLabs or Cartesia) from Phase 7, the browser's `speechSynthesis` as fallback (D-007, D-021) | Meta's API has no speech output model. |
+| Optional | **Muse Spark Open** through Baseten (Phase 7.6) | The "Best Build on Meta Open Weight Models" bonus, and maybe a faster first word. |
 
 ## 5. Scope
 
@@ -68,13 +68,15 @@ It's built first (Phases 1 to 3), because it needs no rooms.
 - A recap at the end of the conversation, in each person's language.
 - An on-screen latency meter: time from the end of your sentence to the other side hearing it.
 - Hosted, so judges can open it on their own phones.
+- Phase 7, a real call (D-018): answer from a link, a natural translated voice, the other person's real
+  voice underneath, a call-shaped screen.
 
 ### Not in the MVP
 - Accounts, sign-in, saved history (no database, D-004).
 - Simultaneous interpretation that speaks *while* you are still talking.
 - Group calls with more than two people (the protocol allows it, the UI doesn't).
 - Native mobile apps.
-- Phone or video calls (WebRTC media). Both people are in the same place, or on a voice call of their own.
+- Video calls. (Voice calls arrived in Phase 7: each person hears the other's real voice quietly under the translation, D-018, D-023.)
 - Anything medical or legal (hackathon anti-project list).
 
 ## 6. Judging, and how the plan answers it

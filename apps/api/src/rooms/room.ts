@@ -2,10 +2,10 @@ import {
   type ConversationContext,
   EMPTY_CONVERSATION_CONTEXT,
   type LanguageCode,
-  type ServerMessage,
 } from '@samvaad/shared';
 import type { ConversationUtterance } from '../lib/conversation-memory';
 import type { OrderedDelivery } from '../lib/create-ordered-delivery';
+import type { TranslationOutput } from '../lib/translation-output';
 
 /** One translation still streaming, kept so it can be cancelled when nobody can receive it. */
 export type TranslationJob = {
@@ -22,7 +22,7 @@ export type Room<Participant> = {
   /** Translations belong to the room, so a speaker leaving doesn't cancel their last one. */
   translationJobs: Set<TranslationJob>;
   /** One per speaker and target language, so each listener hears that speaker in order. */
-  translationDeliveries: Map<string, OrderedDelivery<ServerMessage>>;
+  translationDeliveries: Map<string, OrderedDelivery<TranslationOutput>>;
   /** The setting and glossary; either participant can change it (D-016). */
   context: ConversationContext;
   /** Every finished utterance, oldest first, for translation memory and the recap (D-016). */

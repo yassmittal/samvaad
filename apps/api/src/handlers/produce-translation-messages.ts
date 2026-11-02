@@ -142,6 +142,7 @@ export async function* produceTranslationMessages({
       // Whether context slows the first word (D-016): compare these against the delay above.
       memoryUtteranceCount: promptContext.memoryUtterances.length,
       systemPromptCharacterCount: systemPrompt.length,
+      parallelRequestCount: translationClient.parallelRequestCount,
     },
     'translation complete',
   );
@@ -156,5 +157,7 @@ export async function* produceTranslationMessages({
       firstTranslationDeltaAtEpochMilliseconds,
       translationCompleteAtEpochMilliseconds,
     },
+    // Set by `addTranslationAudio` when the API speaks it (D-021).
+    hasTranslationAudio: false,
   };
 }

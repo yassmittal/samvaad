@@ -5,6 +5,7 @@ import {
   type ConversationContext,
   type ErrorCode,
   isConversationContextEmpty,
+  type WebrtcSignalServerMessage,
 } from '@samvaad/shared';
 import { useCallback, useRef, useState } from 'react';
 import { useConversation } from '../conversation/use-conversation';
@@ -17,6 +18,9 @@ import {
 } from './remembered-room-seat';
 
 export type RoomJoinFailureCode = Extract<ErrorCode, 'ROOM_NOT_FOUND' | 'ROOM_FULL'>;
+
+// An offer and a few dozen ICE candidates; older ones are useless anyway.
+const MAXIMUM_WAITING_WEBRTC_SIGNAL_COUNT = 40;
 
 export type RoomStage =
   /** Asking for a name and language. */
@@ -42,6 +46,38 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
   const initialContextRef = useRef<ConversationContext | null>(null);
   // Set once the API answers, so a creator who reconnects rejoins their room, not a new one.
   const joinedRoomCodeRef = useRef<string | null>(null);
+
+  // A signal can arrive before the real voice is ready for it (the other phone answered first,
+  // or the microphone is still opening), so signals wait here for a listener (D-023).
+  const webrtcSignalListenerRef = useRef<((signal: WebrtcSignalServerMessage) => void) | null>(
+    null,
+  );
+  const waitingWebrtcSignalsRef = useRef<WebrtcSignalServerMessage[]>([]);
+  const deliverWebrtcSignal = useCallback((signal: WebrtcSignalServerMessage) => {
+    const listener = webrtcSignalListenerRef.current;
+    if (listener) {
+      listener(signal);
+      return;
+    }
+    waitingWebrtcSignalsRef.current = [
+      ...waitingWebrtcSignalsRef.current.slice(-(MAXIMUM_WAITING_WEBRTC_SIGNAL_COUNT - 1)),
+      signal,
+    ];
+  }, []);
+  const subscribeToWebrtcSignals = useCallback(
+    (listener: (signal: WebrtcSignalServerMessage) => void) => {
+      webrtcSignalListenerRef.current = listener;
+      for (const signal of waitingWebrtcSignalsRef.current.splice(0)) {
+        listener(signal);
+      }
+      return () => {
+        if (webrtcSignalListenerRef.current === listener) {
+          webrtcSignalListenerRef.current = null;
+        }
+      };
+    },
+    [],
+  );
 
   const sendEntryMessage = useCallback(
     (sendClientMessage: (message: ClientMessage) => void, entry: RoomEntry) => {
@@ -74,9 +110,18 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
       const entry = roomEntryRef.current;
       if (entry) {
         sendEntryMessage(socketClient.sendClientMessage, entry);
+        return;
+      }
+      // Not answered yet: ask who is calling, for the incoming-call screen (D-022).
+      if (requestedRoomCode !== null) {
+        socketClient.sendClientMessage({ type: 'preview_room', roomCode: requestedRoomCode });
       }
     },
     onServerMessage(message) {
+      if (message.type === 'webrtc_signal') {
+        deliverWebrtcSignal(message);
+        return;
+      }
       if (message.type === 'room_joined') {
         joinedRoomCodeRef.current = message.roomCode;
         rememberParticipantId(message.roomCode, message.participantId);
@@ -94,10 +139,13 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
     },
   });
 
+  const { openMicrophoneCapture } = conversationControls;
   const enterRoom = useCallback(
     (entry: RoomEntry, initialContext: ConversationContext | null) => {
-      // Joining is the first tap, and iOS only lets a page speak after one (D-007).
+      // Joining is the first tap, and iOS only lets a page speak after one (D-007). The
+      // microphone opens in the same tap; it sends nothing until both people are in (D-022).
       unlockSpeech();
+      void openMicrophoneCapture();
       rememberRoomEntry(entry);
       roomEntryRef.current = entry;
       initialContextRef.current = initialContext;
@@ -105,7 +153,7 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
       // Dropped if the socket isn't open yet; `onSocketOpen` sends it then.
       sendEntryMessage(sendClientMessage, entry);
     },
-    [sendClientMessage, sendEntryMessage],
+    [sendClientMessage, sendEntryMessage, openMicrophoneCapture],
   );
 
   const leaveRoom = useCallback(() => {
@@ -137,6 +185,11 @@ export function useRoomConversation({ requestedRoomCode }: { requestedRoomCode: 
     conversationContext: conversation.conversationContext,
     contextUpdatedByParticipantName: conversation.contextUpdatedByParticipantName,
     recap: conversation.recap,
+    roomPreview: conversation.roomPreview,
+    iceServers: conversation.iceServers,
+    sendClientMessage,
+    subscribeToWebrtcSignals,
+    participantName: roomEntry?.participantName ?? null,
     languageCode: roomEntry?.languageCode ?? null,
     enterRoom,
     leaveRoom,

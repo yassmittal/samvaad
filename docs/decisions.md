@@ -388,3 +388,125 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   amber, indigo) is the same in both modes.
 - **Revisit when:** rooms need more than two people, or a translation missed during a reconnect
   needs to be resent.
+
+## D-018 — Rooms become a real call: Meta stays the brain, a voice API speaks, WebRTC carries the voice
+
+- **Decision (Yash, 2 Nov):** Phase 7 turns a room into a call
+  ([`phases/phase-07-real-call.md`](phases/phase-07-real-call.md)), following
+  [`research/real-time-calling.md`](research/real-time-calling.md). Muse Voice Transcribe and Muse Spark
+  keep doing the listening, the translating and the recap. A third-party streaming voice speaks the
+  translation (D-021). WebRTC carries each person's real voice to the other phone, quietly, under the
+  translation (D-023). The UI copies the shape of a phone call (D-022). Phase 7 comes before Phase 6.3
+  (submission). In the UI the word is "call"; in the code and docs it stays **room** (vocabulary table).
+- **Why:** Yash wants a WhatsApp-call experience, for the hackathon and as the start of a product. A
+  single speech-to-speech model (`gpt-realtime-translate`, Gemini Live Translate) would be faster but
+  would replace Meta's models, which Stage One requires and "Use of Meta AI tooling" (25%) scores.
+- **Trade-off:** Two more vendors in the path (a voice API, a TURN service), each with its own key and
+  failure mode, so each has a fallback: the browser voice (D-007), and captions plus the translated voice
+  when WebRTC can't connect. `MVP.md` §5's "not in the MVP: phone or video calls (WebRTC media)" no
+  longer holds.
+- **Revisit when:** after the hackathon (LiveKit and a translation agent per room, native apps, a
+  speech-to-speech fast lane: research doc §11).
+
+## D-019 — Keep the transcription stream open while the phone speaks: send silence, don't close
+
+- **Decision:** While the phone speaks a translation, the microphone gate replaces the audio frames
+  with silence of the same size and pace, instead of stopping them. `microphone_state { isOpen: false }`
+  is only sent when the person turns the mic off. The 300 ms after speaking stays silent too (D-008).
+- **Why:** Closing ended Meta's stream every time a translation was spoken, and reopening costs a new
+  handshake (about 0.5 s, Phase 3 notes) before the reply is heard. Meta closes a stream that stops
+  receiving audio (D-005), and silence keeps it fed. Meta bills by audio time ($0.18 an hour), so
+  silence costs almost nothing.
+- **Trade-off:** The other phone no longer sees this mic "off" while it speaks (`room_state`); the
+  orb shows "speaking" instead. An utterance the person was in the middle of when a translation
+  started is still cut short by the silence, as before.
+- **Revisit when:** echo is proven cancelled on speaker (research doc §7); then the gate can go.
+
+## D-020 — Race two translation requests and keep the first to answer
+
+- **Decision:** Each translation sends `TRANSLATION_PARALLEL_REQUEST_COUNT` (default **2**) identical
+  Muse Spark requests at once. The first to yield text wins; the others are aborted. A request that
+  fails before any text is ignored while another is still running; only when all fail is it an error.
+  `1` turns the race off.
+- **Why:** Muse Spark's time to the first word varies from 1.0 to 2.8 s for the same kind of sentence
+  (D-014), because of how long it reasons. The faster of two draws cuts both the median and the long
+  tail. A translation is a few hundred tokens, so doubling it costs cents over a whole demo.
+- **Trade-off:** About twice the translation tokens and requests (rate limits). The recap isn't raced.
+- **Revisit when:** a faster model makes the spread small (7.6), or rate limits bite.
+
+## D-021 — Spoken translation in a natural voice: streaming TTS from the API, browser voice as fallback
+
+- **Decision:** The API synthesises each finished translation with a streaming TTS API and sends the
+  audio to the listeners, in utterance order, as binary WebSocket frames (utterance id + 24 kHz mono
+  PCM16), followed by `translation_audio_end`. `translation_complete` says whether audio follows
+  (`hasTranslationAudio`). The phone plays the audio through one `AudioContext`, unlocked on the first
+  tap like `speechSynthesis` (D-007). If synthesis fails, `translation_audio_end { hasFailed: true }`
+  makes the phone speak the text with its own voice, as before. Providers: **ElevenLabs** (Flash v2.5)
+  and **Cartesia** (Sonic), behind one interface, chosen by `SPEECH_PROVIDER`; the default stays
+  `browser`, so nothing needs a new key to run. `SPEECH_VOICE_IDS` gives the room's first participant
+  the first voice and the second the second, so the two people sound different. The provider and voices
+  are picked by Yash after `scripts/compare-voices.ts` (Phase 7.3).
+- **Why:** The browser voice is the weakest part of the demo (D-007). Both providers speak Hindi and
+  English, stream their first audio in well under half a second, and have free tiers that cover a demo.
+  Synthesising after `translation_complete` rather than mid-stream costs about 100 ms (Muse Spark
+  streams a whole sentence that fast once it starts, D-006) and keeps one request per utterance.
+  Raw PCM needs no decoder in the browser. The key stays on the API, like Meta's.
+- **Trade-off:** Another network hop and vendor. About 48 KB/s down per second of speech (raw 24 kHz
+  PCM16), fine on mobile data. Free tiers are non-commercial; the product needs a paid plan. Ordered
+  delivery now waits for an utterance's audio before the next utterance's captions go out; synthesis runs
+  faster than real time, so the wait is short.
+- **Revisit when:** voice cloning is wanted (both providers clone), or an Indian-language voice
+  (Sarvam) sounds clearly better for Hindi in the bake-off.
+- **Bake-off (2 Nov, `compare:voices` from Yash's laptop, five demo lines per voice):** both keys and
+  both request formats work. Time to the first audio byte, after each batch's cold first line:
+  **Cartesia `sonic-3` 180 to 330 ms**, ElevenLabs Flash v2.5 560 to 1,000 ms (cold first lines 1.0 s
+  and 2.3 to 3.3 s). Cartesia has native Hindi voices. **Set locally, until Yash has listened:**
+  `SPEECH_PROVIDER=cartesia`, Dev (Hindi male) for the caller and Meera (Hindi female) for the person
+  who answers. **One in-app run** (two headless browsers, the English fixture as the microphone, real
+  Meta and Cartesia): final transcript → first translated word 728 ms, translation complete → first
+  audio 214 ms, **speech end → playback start 2.07 s** (one sample, not a measurement).
+
+## D-022 — The call UI: start, share, answer, talk, end
+
+- **Decision:** The room screens are redesigned as a phone call (Phase 7.4): home with one **Start a
+  call** button; a calling screen with Share, QR and code; an incoming screen ("Ramesh is calling ·
+  speaks Hindi") with a big **Answer**; a dark in-call screen with one orb, the newest words large, ✓/✓✓
+  receipts, and a bottom bar (Mute, Original voice, Captions, Context, End call); the recap with **Call
+  again**. The mic opens on Answer, and for the creator once the other person joins: no mic button to
+  find. To show who is calling before joining, the browser sends `preview_room { roomCode }` and the
+  API answers `room_preview { roomCode, participants: [{ participantName, languageCode }] }` or
+  `ROOM_NOT_FOUND`. For the ✓/✓✓ receipts, the API sends the speaker `utterance_receipt { utteranceId,
+  receipt: 'translated' | 'heard' }` when the translation reaches the other phone and when that phone
+  reports `playback_started`; each remembered utterance keeps its `speakerParticipantId` for this. The
+  orb has six states: idle, you speaking, translating (your colour sweeping to
+  theirs), they speaking, their translation playing, reconnecting. Tokens: a dark call screen, a warm
+  hue for you and a cool one for them, captions at 28 to 32 px, springs of 200 to 400 ms, and only the
+  orb loops. Table mode keeps its current screen.
+- **Why:** "Make it like a WhatsApp call, as simple as possible" (Yash). Everyone already knows how a
+  call screen works, so nothing needs explaining. The patterns come from Apple's and Google's call
+  translation and WhatsApp's call screen; no other site's code or assets are copied (research doc §10).
+- **Trade-off:** The orb's "they are speaking" state comes from `room_state` and the receipts until
+  WebRTC (D-023) gives the phone their audio level. More motion means more to test on a cheap Android phone.
+- **Revisit when:** native apps (ringing, lock screen).
+
+## D-023 — The real voice: WebRTC audio between the two phones, signalled through the API
+
+- **Decision:** In a two-person room, the phones open a WebRTC peer connection for audio only. Offers,
+  answers and ICE candidates travel over the conversation socket as `webrtc_signal`, which the API relays
+  only between participants of the same room. The API sends `ice_servers` after `room_joined`:
+  Cloudflare's free STUN, plus short-lived Cloudflare TURN credentials when `CLOUDFLARE_TURN_KEY_ID`
+  and `CLOUDFLARE_TURN_API_TOKEN` are set. The participant who joined second makes the offer. One
+  `getUserMedia` stream feeds both the PCM capture (D-009) and the peer connection. The other person's
+  voice plays through an `<audio>` element at `ORIGINAL_VOICE_VOLUME` (0.25), under the translated
+  voice, with an "Original voice" switch in the call bar. The send track is disabled whenever the mic
+  gate isn't sending real audio (muted, or the phone speaking a translation, D-019).
+- **Why:** Hearing the real voice is what makes it a call: tone, laughter, "hmm", and knowing they're
+  talking before the translation comes (Google Meet does the same). Peer-to-peer costs nothing and is the
+  shortest path between two phones in India. Playing the remote track through a media element keeps it
+  inside what the browser's echo canceller cancels (research doc §7). Muting the send track while the
+  phone speaks stops a speaker hearing their own translation come back.
+- **Trade-off:** Mobile carriers' NAT can block peer-to-peer without TURN; then the call works as before,
+  captions and translated voice, without the real voice. iOS ignores `<audio>.volume`, so on an iPhone
+  the original voice is on (full volume) or off. The original voice can't be heard while your own phone
+  speaks a translation.
+- **Revisit when:** LiveKit replaces peer-to-peer after the hackathon (research doc §6).

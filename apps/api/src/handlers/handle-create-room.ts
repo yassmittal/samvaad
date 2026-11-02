@@ -2,6 +2,7 @@ import type { CreateRoomMessage } from '@samvaad/shared';
 import type { ConversationConnection } from './conversation-connection';
 import { leaveCurrentRoom } from './handle-leave-room';
 import { broadcastRoomState } from './room-messages';
+import { sendIceServers } from './send-ice-servers';
 
 export function handleCreateRoom(
   connection: ConversationConnection,
@@ -15,10 +16,13 @@ export function handleCreateRoom(
     languageCodes: [message.languageCode],
   };
   connection.translationClient.warmConnection();
+  connection.speechSynthesisClient?.warmConnection();
   connection.sendServerMessage({
     type: 'room_joined',
     roomCode: room.roomCode,
     participantId: connection.participantId,
+    isTranslationAudioEnabled: connection.speechSynthesisClient !== null,
   });
   broadcastRoomState(room);
+  void sendIceServers(connection);
 }

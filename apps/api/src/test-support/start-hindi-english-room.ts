@@ -25,6 +25,8 @@ export async function startHindiEnglishRoom(
   const { roomCode, participantId: hindiParticipantId } =
     await hindiBrowser.waitForMessage('room_joined');
   await hindiBrowser.waitForMessage('room_state');
+  // Where to look for the other phone, for the real voice (D-023).
+  await hindiBrowser.waitForMessage('ice_servers');
 
   const englishBrowser = await servers.connectAnotherBrowser();
   englishBrowser.sendJson({
@@ -38,6 +40,7 @@ export async function startHindiEnglishRoom(
   // A joining phone is told the room's context (D-016); empty here.
   await englishBrowser.waitForMessage('conversation_context');
   await englishBrowser.waitForMessage('room_state');
+  await englishBrowser.waitForMessage('ice_servers');
   await hindiBrowser.waitForMessage('room_state');
 
   return {

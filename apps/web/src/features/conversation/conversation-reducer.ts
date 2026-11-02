@@ -2,9 +2,12 @@ import {
   type ConversationContext,
   EMPTY_CONVERSATION_CONTEXT,
   type ErrorCode,
+  type IceServer,
   type LanguageCode,
   type RoomParticipant,
+  type RoomPreviewMessage,
   type ServerMessage,
+  type UtteranceReceipt,
 } from '@samvaad/shared';
 
 export type CaptionTranslation = {
@@ -32,6 +35,8 @@ export type Caption = {
   languageCode: LanguageCode | null;
   translation: CaptionTranslation | null;
   hasTranslationFailed: boolean;
+  /** This phone's own utterance: ✓ translated, ✓✓ heard on the other phone (D-022). */
+  receipt: UtteranceReceipt | null;
 };
 
 export type ConversationRoomState = {
@@ -61,6 +66,12 @@ export type ConversationState = {
   contextUpdatedByParticipantName: string | null;
   /** `null` until someone ends the conversation, and again after "Back to the conversation". */
   recap: ConversationRecap | null;
+  /** The API speaks translations itself (D-021), so this phone needs no voice of its own. */
+  isTranslationAudioEnabled: boolean;
+  /** Who is in the room this phone is about to join, for the incoming-call screen (D-022). */
+  roomPreview: Pick<RoomPreviewMessage, 'roomCode' | 'participants'> | null;
+  /** Where to look for the other phone, for the real voice; `null` until the API says (D-023). */
+  iceServers: IceServer[] | null;
 };
 
 /** Not from the server: this phone started speaking an utterance's translation. */
@@ -84,6 +95,9 @@ export const INITIAL_CONVERSATION_STATE: ConversationState = {
   conversationContext: EMPTY_CONVERSATION_CONTEXT,
   contextUpdatedByParticipantName: null,
   recap: null,
+  isTranslationAudioEnabled: false,
+  roomPreview: null,
+  iceServers: null,
 };
 
 function startRecap(endedByParticipantName: string | null): ConversationRecap {
@@ -98,7 +112,10 @@ type TranscriptUpdate = Pick<
 function upsertTranscript(captions: Caption[], update: TranscriptUpdate): Caption[] {
   const existingCaption = captions.find((caption) => caption.utteranceId === update.utteranceId);
   if (!existingCaption) {
-    return [...captions, { ...update, translation: null, hasTranslationFailed: false }];
+    return [
+      ...captions,
+      { ...update, translation: null, hasTranslationFailed: false, receipt: null },
+    ];
   }
   // A late partial must not turn a finished caption back into a partial one.
   if (existingCaption.isFinal && !update.isFinal) {
@@ -165,12 +182,18 @@ export function reduceConversation(
 ): ConversationState {
   switch (event.type) {
     case 'session_ready':
-      return { ...state, participantId: event.participantId, latestError: null };
+      return {
+        ...state,
+        participantId: event.participantId,
+        isTranslationAudioEnabled: event.isTranslationAudioEnabled,
+        latestError: null,
+      };
 
     case 'room_joined':
       return {
         ...state,
         participantId: event.participantId,
+        isTranslationAudioEnabled: event.isTranslationAudioEnabled,
         // A rejoin keeps who's here until the next room_state, so the screen doesn't blink.
         room: { roomCode: event.roomCode, participants: state.room?.participants ?? [] },
         captions: markMissedTranslationsFailed(state.captions),
@@ -183,6 +206,22 @@ export function reduceConversation(
         room: { roomCode: event.roomCode, participants: event.participants },
         departedParticipantName:
           event.participants.length > 1 ? null : state.departedParticipantName,
+      };
+
+    case 'room_preview':
+      return {
+        ...state,
+        roomPreview: { roomCode: event.roomCode, participants: event.participants },
+      };
+
+    // "Heard" never goes back to "translated", whatever order they arrive in.
+    case 'utterance_receipt':
+      return {
+        ...state,
+        captions: updateCaption(state.captions, event.utteranceId, (caption) => ({
+          ...caption,
+          receipt: caption.receipt === 'heard' ? 'heard' : event.receipt,
+        })),
       };
 
     case 'participant_left':
@@ -246,6 +285,17 @@ export function reduceConversation(
           },
         })),
       };
+
+    // The audio itself never reaches the reducer; `useConversation` plays it (D-021).
+    case 'translation_audio_end':
+      return state;
+
+    case 'ice_servers':
+      return { ...state, iceServers: event.iceServers };
+
+    // A step of the peer connection's setup, handled by `useOriginalVoice` (D-023).
+    case 'webrtc_signal':
+      return state;
 
     case 'playback_started':
       return {

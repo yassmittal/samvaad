@@ -49,5 +49,10 @@ export function useMicrophone({ onAudioFrame }: { onAudioFrame: (frame: ArrayBuf
 
   useEffect(() => close, [close]);
 
-  return { status, open, close };
+  /** The microphone's analyser while it is open, for the call screen's orb (D-022). */
+  const findAnalyserNode = useCallback(() => captureRef.current?.analyserNode ?? null, []);
+  /** The open microphone's stream, for the real voice between the phones (D-023). */
+  const findMediaStream = useCallback(() => captureRef.current?.mediaStream ?? null, []);
+
+  return { status, open, close, findAnalyserNode, findMediaStream };
 }

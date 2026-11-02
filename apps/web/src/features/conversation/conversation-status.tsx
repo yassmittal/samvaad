@@ -48,45 +48,43 @@ const TONE_DOT_CLASS_NAME: Partial<Record<StatusTone, string>> = {
   speaking: 'bg-indigo-500 animate-pulse',
 };
 
-function findStatus({
+type ConversationProblemInput = Pick<
+  ConversationStatusProps,
+  'socketStatus' | 'microphoneStatus' | 'latestError'
+>;
+
+/** What's wrong, in a sentence with the next step, or `null`. Also the call screen's (D-022). */
+export function findConversationProblemText({
   socketStatus,
   microphoneStatus,
-  isSpeaking,
-  isTranslating,
   latestError,
-}: ConversationStatusProps): { text: string; tone: StatusTone } | null {
+}: ConversationProblemInput): string | null {
+  if (socketStatus === 'reconnecting') {
+    return 'Connection lost. Reconnecting…';
+  }
+  if (socketStatus === 'closed') {
+    return 'Can’t reach the server. Check your connection, then tap Try again.';
+  }
+  if (socketStatus === 'replaced') {
+    return 'This room is open in another tab or on another phone. Tap Try again to use it here.';
+  }
+  if (microphoneStatus === 'permission-denied') {
+    return 'Microphone access is blocked. Allow it in the browser’s site settings, then try again.';
+  }
+  if (microphoneStatus === 'unavailable') {
+    return 'No microphone available. On a phone, open the app over https.';
+  }
+  return latestError ? ERROR_EXPLANATION[latestError.code] : null;
+}
+
+function findStatus(props: ConversationStatusProps): { text: string; tone: StatusTone } | null {
+  const { socketStatus, microphoneStatus, isSpeaking, isTranslating } = props;
   if (socketStatus === 'connecting') {
     return { text: 'Connecting…', tone: 'quiet' };
   }
-  if (socketStatus === 'reconnecting') {
-    return { text: 'Connection lost. Reconnecting…', tone: 'problem' };
-  }
-  if (socketStatus === 'closed') {
-    return {
-      text: 'Can’t reach the server. Check your connection, then tap Try again.',
-      tone: 'problem',
-    };
-  }
-  if (socketStatus === 'replaced') {
-    return {
-      text: 'This room is open in another tab or on another phone. Tap Try again to use it here.',
-      tone: 'problem',
-    };
-  }
-  if (microphoneStatus === 'permission-denied') {
-    return {
-      text: 'Microphone access is blocked. Allow it in the browser’s site settings, then try again.',
-      tone: 'problem',
-    };
-  }
-  if (microphoneStatus === 'unavailable') {
-    return {
-      text: 'No microphone available. On a phone, open the app over https.',
-      tone: 'problem',
-    };
-  }
-  if (latestError) {
-    return { text: ERROR_EXPLANATION[latestError.code], tone: 'problem' };
+  const problemText = findConversationProblemText(props);
+  if (problemText !== null) {
+    return { text: problemText, tone: 'problem' };
   }
   if (isSpeaking) {
     return {

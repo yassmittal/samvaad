@@ -1,6 +1,14 @@
 import type { Metadata, Viewport } from 'next';
+import { Anek_Devanagari } from 'next/font/google';
 import type { ReactNode } from 'react';
 import './globals.css';
+
+// One family for Devanagari and Latin, so Hindi and English captions sit together (D-022).
+const anekFont = Anek_Devanagari({
+  subsets: ['devanagari', 'latin'],
+  variable: '--font-anek',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Samvaad',
@@ -19,7 +27,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={anekFont.variable}>
       <body>{children}</body>
     </html>
   );

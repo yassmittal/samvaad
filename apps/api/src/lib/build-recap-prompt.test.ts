@@ -13,6 +13,7 @@ function createUtterance(
 ): ConversationUtterance {
   return {
     utteranceId: transcript,
+    speakerParticipantId: 'participant-siobhan',
     speakerName: 'Siobhan',
     languageCode: 'en',
     transcript,

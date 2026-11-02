@@ -7,8 +7,10 @@ import { handleJoinRoom } from './handle-join-room';
 import { handleLeaveRoom } from './handle-leave-room';
 import { handleMicrophoneState } from './handle-microphone-state';
 import { handlePlaybackStarted } from './handle-playback-started';
+import { handlePreviewRoom } from './handle-preview-room';
 import { handleStartTableSession } from './handle-start-table-session';
 import { handleUpdateConversationContext } from './handle-update-conversation-context';
+import { handleWebrtcSignal } from './handle-webrtc-signal';
 
 /** Parses one JSON text frame with the shared schema and hands it to its handler. */
 export function handleClientMessage(connection: ConversationConnection, messageText: string): void {
@@ -45,6 +47,12 @@ export function handleClientMessage(connection: ConversationConnection, messageT
       return;
     case 'join_room':
       handleJoinRoom(connection, message);
+      return;
+    case 'webrtc_signal':
+      handleWebrtcSignal(connection, message);
+      return;
+    case 'preview_room':
+      handlePreviewRoom(connection, message);
       return;
     case 'leave_room':
       handleLeaveRoom(connection);

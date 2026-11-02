@@ -118,6 +118,7 @@ async function compareConversation(): Promise<{
     });
     rememberedUtterances.push({
       utteranceId: `demo-${index}`,
+      speakerParticipantId: utterance.speakerName,
       speakerName: utterance.speakerName,
       languageCode: sourceLanguageCode,
       transcript: utterance.transcript,

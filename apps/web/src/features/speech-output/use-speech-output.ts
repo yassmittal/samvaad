@@ -3,16 +3,28 @@
 import { type LanguageCode, SUPPORTED_LANGUAGE_BY_CODE } from '@samvaad/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { pickVoice } from './pick-voice';
+import { playTranslationAudio } from './play-translation-audio';
+import { findPlaybackAudioOutput } from './playback-audio-output';
 import { speakWithSpeechSynthesis } from './speak-with-speech-synthesis';
 import { createSpeechQueue, type SpeechQueue, type SpeechRequest } from './speech-queue';
+import type { TranslationAudioStore } from './translation-audio-store';
 
 type SpeechOutputOptions = {
+  /** Where the API's spoken translations collect as their frames arrive (D-021). */
+  translationAudioStore: TranslationAudioStore;
   onSpeakingChange: (isSpeaking: boolean) => void;
   onPlaybackStarted: (request: SpeechRequest) => void;
 };
 
-/** Speaks translations aloud with the browser's voices, one at a time (D-007). */
-export function useSpeechOutput({ onSpeakingChange, onPlaybackStarted }: SpeechOutputOptions) {
+/**
+ * Speaks translations aloud, one at a time: the API's own speech when it sends some (D-021),
+ * otherwise, or when that fails, the browser's voice (D-007).
+ */
+export function useSpeechOutput({
+  translationAudioStore,
+  onSpeakingChange,
+  onPlaybackStarted,
+}: SpeechOutputOptions) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(true);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -32,15 +44,36 @@ export function useSpeechOutput({ onSpeakingChange, onPlaybackStarted }: SpeechO
     updateVoices();
     speechSynthesis.addEventListener('voiceschanged', updateVoices);
 
+    let activePlayback: { stop: () => void } | null = null;
     const queue = createSpeechQueue({
       speak(request, { onStarted, onFinished }) {
         const { speechSynthesisLanguageTag } = SUPPORTED_LANGUAGE_BY_CODE[request.languageCode];
-        speakWithSpeechSynthesis({
-          text: request.text,
-          voice: pickVoice(voicesRef.current, speechSynthesisLanguageTag),
-          speechSynthesisLanguageTag,
+        const speakText = () =>
+          speakWithSpeechSynthesis({
+            text: request.text,
+            voice: pickVoice(voicesRef.current, speechSynthesisLanguageTag),
+            speechSynthesisLanguageTag,
+            onStarted,
+            onFinished,
+          });
+        const playbackAudioOutput = findPlaybackAudioOutput();
+        if (!request.hasTranslationAudio || playbackAudioOutput === null) {
+          speakText();
+          return;
+        }
+        activePlayback = playTranslationAudio({
+          playbackAudioOutput,
+          translationAudioStore,
+          utteranceId: request.utteranceId,
           onStarted,
-          onFinished,
+          onFinished() {
+            activePlayback = null;
+            onFinished();
+          },
+          onFailedBeforeAudio() {
+            activePlayback = null;
+            speakText();
+          },
         });
       },
       onSpeakingChange(nextIsSpeaking) {
@@ -55,9 +88,10 @@ export function useSpeechOutput({ onSpeakingChange, onPlaybackStarted }: SpeechO
       speechSynthesis.removeEventListener('voiceschanged', updateVoices);
       queue.clearWaitingRequests();
       speechSynthesis.cancel();
+      activePlayback?.stop();
       queueRef.current = null;
     };
-  }, []);
+  }, [translationAudioStore]);
 
   /** `false` only when this device is known to have no voice for the language. */
   const hasVoiceForLanguage = useCallback(
@@ -81,7 +115,11 @@ export function useSpeechOutput({ onSpeakingChange, onPlaybackStarted }: SpeechO
   /** Queues a translation to be spoken; `false` when its language stays captions only. */
   const speak = useCallback((request: SpeechRequest): boolean => {
     const queue = queueRef.current;
-    if (!queue || !hasVoiceForLanguageRef.current(request.languageCode)) {
+    // The API's speech needs no voice on this phone (D-021).
+    if (
+      !queue ||
+      (!request.hasTranslationAudio && !hasVoiceForLanguageRef.current(request.languageCode))
+    ) {
       return false;
     }
     queue.enqueue(request);

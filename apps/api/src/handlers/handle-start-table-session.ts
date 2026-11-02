@@ -23,9 +23,11 @@ export function handleStartTableSession(
     };
   }
   connection.translationClient.warmConnection();
+  connection.speechSynthesisClient?.warmConnection();
   connection.sendServerMessage({
     type: 'session_ready',
     participantId: connection.participantId,
     languageCodes: message.languageCodes,
+    isTranslationAudioEnabled: connection.speechSynthesisClient !== null,
   });
 }

@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import { createSpeechQueue, type SpeechRequest } from './speech-queue';
 
 function createRequest(utteranceId: string): SpeechRequest {
-  return { utteranceId, text: `Text of ${utteranceId}.`, languageCode: 'en', isRepeat: false };
+  return {
+    utteranceId,
+    text: `Text of ${utteranceId}.`,
+    languageCode: 'en',
+    isRepeat: false,
+    hasTranslationAudio: false,
+  };
 }
 
 /** A queue whose speech only starts and finishes when the test says so. */

@@ -124,6 +124,7 @@ describe('reduceConversation', () => {
 
       state = reduceConversation(state, {
         type: 'translation_complete',
+        hasTranslationAudio: false,
         utteranceId: 'utterance-1',
         targetLanguageCode: 'en',
         text: 'Hello, friend.',
@@ -182,6 +183,7 @@ describe('reduceConversation', () => {
     function createStateInRoomAsAsha(): ConversationState {
       let state = reduceConversation(INITIAL_CONVERSATION_STATE, {
         type: 'room_joined',
+        isTranslationAudioEnabled: false,
         roomCode: 'K7MQ2X',
         participantId: ASHA.participantId,
       });
@@ -248,6 +250,7 @@ describe('reduceConversation', () => {
 
       state = reduceConversation(state, {
         type: 'translation_complete',
+        hasTranslationAudio: false,
         utteranceId: 'utterance-1',
         targetLanguageCode: 'hi',
         text: 'पाठ',
@@ -271,6 +274,7 @@ describe('reduceConversation', () => {
 
       state = reduceConversation(state, {
         type: 'room_joined',
+        isTranslationAudioEnabled: false,
         roomCode: 'K7MQ2X',
         participantId: ASHA.participantId,
       });

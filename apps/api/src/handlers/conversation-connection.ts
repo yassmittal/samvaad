@@ -8,11 +8,16 @@ import type { ParticipantLanguageCodes } from '../lib/plan-utterance-translation
 import type { ApiEnv } from '../plugins/env';
 import type { Room } from '../rooms/room';
 import type { RoomRegistry } from '../rooms/room-registry';
+import { createIceServersClient, type IceServersClient } from '../services/ice-servers-client';
 import type { MetaTranscriptionStream } from '../services/meta-transcription-stream';
 import {
   createMetaTranslationClient,
   type MetaTranslationClient,
 } from '../services/meta-translation-client';
+import {
+  createSpeechSynthesisClient,
+  type SpeechSynthesisClient,
+} from '../services/speech-synthesis-client';
 
 export type ActiveTranscription = {
   stream: MetaTranscriptionStream;
@@ -44,6 +49,8 @@ export type ConversationConnection = {
   env: ApiEnv;
   logger: FastifyBaseLogger;
   sendServerMessage: (message: ServerMessage) => void;
+  /** Sends a binary frame: a piece of a spoken translation (D-021). */
+  sendBinaryFrame: (frame: Uint8Array) => void;
   /** Closes the browser's socket from the API's side, as when a newer one takes the seat. */
   closeSocket: (closeCode: number, reason: string) => void;
   roomRegistry: ConversationRoomRegistry;
@@ -63,13 +70,23 @@ export type ConversationConnection = {
   reconnectGraceTimeout: ReturnType<typeof setTimeout> | null;
   /** Translates this participant's utterances. */
   translationClient: MetaTranslationClient;
+  /** Speaks this participant's translations; `null` when phones use their own voice (D-021). */
+  speechSynthesisClient: SpeechSynthesisClient | null;
+  /** STUN and TURN servers for the real voice between the phones (D-023). */
+  iceServersClient: IceServersClient;
   /** Translations sent to this listener, waiting for `playback_started`, to log the whole delay (D-011). */
   playbackTimings: PlaybackTimingsStore;
 };
 
 type ConversationConnectionOptions = Pick<
   ConversationConnection,
-  'participantId' | 'env' | 'logger' | 'sendServerMessage' | 'closeSocket' | 'roomRegistry'
+  | 'participantId'
+  | 'env'
+  | 'logger'
+  | 'sendServerMessage'
+  | 'sendBinaryFrame'
+  | 'closeSocket'
+  | 'roomRegistry'
 >;
 
 export function createConversationConnection(
@@ -88,7 +105,13 @@ export function createConversationConnection(
       modelId: options.env.META_TRANSLATION_MODEL_ID,
       metaApiKey: options.env.META_API_KEY,
       logger: options.logger,
+      parallelRequestCount: options.env.TRANSLATION_PARALLEL_REQUEST_COUNT,
     }),
+    speechSynthesisClient: createSpeechSynthesisClient({
+      env: options.env,
+      logger: options.logger,
+    }),
+    iceServersClient: createIceServersClient({ env: options.env, logger: options.logger }),
     playbackTimings: createPlaybackTimingsStore(),
   };
 }

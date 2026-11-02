@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { parseServerSentEvents } from '../lib/parse-server-sent-events';
+import { raceTextStreams } from '../lib/race-text-streams';
 
 const STREAM_DONE_MARKER = '[DONE]';
 // Muse Spark always reasons; "minimal" is the least it allows and measured fastest (D-014).
@@ -24,6 +25,8 @@ type MetaTranslationClientOptions = {
   /** Tests shorten them. */
   timeoutMilliseconds?: number;
   recapTimeoutMilliseconds?: number;
+  /** Identical translation requests raced against each other; the first to answer wins (D-020). */
+  parallelRequestCount?: number;
 };
 
 type StreamTranslationInput = {
@@ -59,6 +62,7 @@ export function createMetaTranslationClient({
   logger,
   timeoutMilliseconds = TRANSLATION_TIMEOUT_MILLISECONDS,
   recapTimeoutMilliseconds = RECAP_TIMEOUT_MILLISECONDS,
+  parallelRequestCount = 1,
 }: MetaTranslationClientOptions) {
   const authorizationHeaders = { Authorization: `Bearer ${metaApiKey}` };
 
@@ -122,18 +126,28 @@ export function createMetaTranslationClient({
   }
 
   return {
-    /** Yields the translation's text as it arrives. Throws `TranslationFailedError`. */
+    parallelRequestCount,
+
+    /**
+     * Yields the translation's text as it arrives, from whichever of `parallelRequestCount`
+     * identical requests answers first (D-020). Throws `TranslationFailedError`.
+     */
     streamTranslation({
       systemPrompt,
       utteranceText,
       signal,
     }: StreamTranslationInput): AsyncGenerator<string> {
-      return streamChatCompletion({
-        systemPrompt,
-        userText: utteranceText,
-        reasoningEffort: TRANSLATION_REASONING_EFFORT,
+      return raceTextStreams({
+        startTextStream: (requestSignal) =>
+          streamChatCompletion({
+            systemPrompt,
+            userText: utteranceText,
+            reasoningEffort: TRANSLATION_REASONING_EFFORT,
+            signal: requestSignal,
+            timeoutMilliseconds,
+          }),
+        streamCount: parallelRequestCount,
         signal,
-        timeoutMilliseconds,
       });
     },
 
@@ -152,13 +166,16 @@ export function createMetaTranslationClient({
     },
 
     /**
-     * Opens the HTTPS connection before the first utterance needs it, so that utterance
-     * doesn't pay for the TLS handshake. `fetch` keeps the connection for reuse (D-014).
+     * Opens the HTTPS connections before the first utterance needs them, so that utterance
+     * doesn't pay for the TLS handshake. `fetch` keeps each connection for reuse (D-014). One
+     * per raced request: the race's second request would otherwise start cold (D-020).
      */
     warmConnection(): void {
-      fetch(new URL('/v1/models', chatCompletionsUrl), { headers: authorizationHeaders })
-        .then((response) => response.body?.cancel())
-        .catch((error: unknown) => logger.debug({ err: error }, 'translation warm-up failed'));
+      for (let requestIndex = 0; requestIndex < parallelRequestCount; requestIndex += 1) {
+        fetch(new URL('/v1/models', chatCompletionsUrl), { headers: authorizationHeaders })
+          .then((response) => response.body?.cancel())
+          .catch((error: unknown) => logger.debug({ err: error }, 'translation warm-up failed'));
+      }
     },
   };
 }

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { RoomConversation } from '@/features/rooms/room-conversation';
 
-export const metadata: Metadata = { title: 'Join a room · Samvaad' };
+export const metadata: Metadata = { title: 'Incoming call · Samvaad' };
 
 export default async function RoomPage({ params }: PageProps<'/room/[roomCode]'>) {
   const parseResult = roomCodeSchema.safeParse((await params).roomCode);
