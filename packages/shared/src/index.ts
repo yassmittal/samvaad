@@ -1,4 +1,5 @@
 export * from './audio/audio-format';
+export * from './audio/is-quiet-audio-frame';
 export * from './audio/translation-audio-frame';
 export * from './domain/conversation-context';
 export * from './domain/demo-conversation-preset';

@@ -27,6 +27,8 @@ type InCallScreenProps = {
   captions: readonly Caption[];
   isSpeaking: boolean;
   isReconnecting: boolean;
+  /** This phone's audio is reaching the API late (D-024). */
+  isConnectionWeak: boolean;
   /** The real voice between the phones (D-023); `null` until it connects. */
   originalVoice: {
     isOn: boolean;
@@ -54,8 +56,10 @@ function createStatusText(
   }
   switch (orbState) {
     case 'idle':
+      return 'Speak now';
     case 'you_speaking':
-      return 'Listening…';
+      // Meta translates at the pause (D-005), so say when that is.
+      return 'Listening… pause when you’re done';
     case 'translating_to_them':
       return `Translating for ${otherParticipantName}…`;
     case 'translating_to_you':
@@ -63,7 +67,9 @@ function createStatusText(
     case 'they_speaking':
       return `${otherParticipantName} is speaking…`;
     case 'their_translation_playing':
-      return `${otherParticipantName}, in your language`;
+      // The mic is paused so the phone doesn't translate itself (D-019): say so, or a reply
+      // started now seems to vanish.
+      return `${otherParticipantName}, in your language · your mic is paused`;
     case 'reconnecting':
       return 'Reconnecting…';
   }
@@ -78,6 +84,7 @@ export function InCallScreen({
   captions,
   isSpeaking,
   isReconnecting,
+  isConnectionWeak,
   originalVoice,
   isMuted,
   hasVoice,
@@ -126,6 +133,11 @@ export function InCallScreen({
           <p role="status" className="min-h-5 text-sm text-call-muted">
             {createStatusText(orbState, otherParticipantName, isMuted)}
           </p>
+          {isConnectionWeak && !isReconnecting && (
+            <p className="text-xs text-amber-300">
+              Weak connection: {otherParticipantName} hears you late
+            </p>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col py-6">

@@ -142,3 +142,37 @@ describe('a phone whose audio falls behind real time (D-024)', () => {
     expect(metaConnection.receivedAudioByteCount).toBe(frameCount * BYTES_PER_FRAME);
   });
 });
+
+describe('a phone whose late audio arrives all at once (D-024)', () => {
+  const PACED_ENV = { TRANSCRIPTION_MAXIMUM_AUDIO_LAG_MILLISECONDS: '400' };
+  // 4 s of audio in one burst: well past the 1.5 s the API lets a stream run ahead.
+  const BURST_FRAME_COUNT = 50;
+
+  test('quiet frames past the allowed lead are dropped', async () => {
+    servers = await startConversationTestServers({ env: PACED_ENV });
+    const metaConnection = await servers.startTableSessionWithMicrophoneOpen();
+
+    for (let frameIndex = 0; frameIndex < BURST_FRAME_COUNT; frameIndex++) {
+      servers.browser.sendAudioFrame(new Uint8Array(BYTES_PER_FRAME));
+    }
+    await Bun.sleep(300);
+
+    const receivedMilliseconds =
+      (metaConnection.receivedAudioByteCount / BYTES_PER_FRAME) * FRAME_DURATION_MILLISECONDS;
+    expect(receivedMilliseconds).toBeLessThan(2500);
+  });
+
+  test('speech in the burst is kept', async () => {
+    servers = await startConversationTestServers({ env: PACED_ENV });
+    const metaConnection = await servers.startTableSessionWithMicrophoneOpen();
+    const speechFrame = new Int16Array(BYTES_PER_FRAME / 2).fill(5000);
+
+    for (let frameIndex = 0; frameIndex < BURST_FRAME_COUNT; frameIndex++) {
+      servers.browser.sendAudioFrame(new Uint8Array(speechFrame.buffer));
+    }
+    await waitForCondition(
+      () => metaConnection.receivedAudioByteCount >= BURST_FRAME_COUNT * BYTES_PER_FRAME,
+      'every speech frame',
+    );
+  });
+});

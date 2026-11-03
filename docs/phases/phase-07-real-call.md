@@ -194,3 +194,12 @@ audio 150 to 640 ms after the translation was complete. One Muse Spark request t
   any tap on the call screen resumes both. A paused capture context sends no audio, which matches the silent
   start.
 - The answer screen no longer wipes a typed name when the caller's details (`room_preview`) arrive.
+
+### Third live call (2 Nov evening)
+
+Delays, lost sentences and dropped sockets, all from a network losing 57% of packets past the router
+(measured from the laptop on the same connection; the router itself answered every ping). The EC2 server
+answered its own health check in 1 ms. One stream ran 34 s ahead and Meta ended it ("Audio processing
+backlog too large"), Cartesia answered 429 once, and two Muse Spark requests timed out. Fixes 3 to 6 in
+D-024: the 1.5 s lead cap, speech-only upload when the socket is backed up, a "Weak connection" line,
+the 429 retry, and status text that says when to speak and when the mic is paused.

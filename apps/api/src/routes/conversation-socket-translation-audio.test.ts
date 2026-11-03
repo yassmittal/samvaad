@@ -141,6 +141,38 @@ describe('spoken translation from a voice API (D-021)', () => {
     expect(englishBrowser.receivedAudioFrames).toEqual([]);
   });
 
+  test('a busy voice API (429) is tried again, and its audio still arrives (D-024)', async () => {
+    let speechRequestCount = 0;
+    const { hindiBrowser, englishBrowser } = await startRoomWithSpeech(ELEVENLABS_ENV, () => {
+      speechRequestCount += 1;
+      return speechRequestCount === 1
+        ? { chunks: [], failureStatus: 429 }
+        : { chunks: [[1, 0, 2, 0]] };
+    });
+    const metaConnection = await servers.openMicrophone(hindiBrowser);
+
+    sendFinishedUtterance(metaConnection, { turnId: 0, transcript: 'नमस्ते दोस्त' });
+    const audioEnd = await englishBrowser.waitForMessage('translation_audio_end');
+
+    expect(audioEnd.hasFailed).toBe(false);
+    expect(servers.fakeSpeechServer.receivedRequests).toHaveLength(2);
+    expect(englishBrowser.receivedAudioFrames).toHaveLength(1);
+  });
+
+  test('a voice API that stays busy falls back to the phone, after two retries', async () => {
+    const { hindiBrowser, englishBrowser } = await startRoomWithSpeech(ELEVENLABS_ENV, () => ({
+      chunks: [],
+      failureStatus: 429,
+    }));
+    const metaConnection = await servers.openMicrophone(hindiBrowser);
+
+    sendFinishedUtterance(metaConnection, { turnId: 0, transcript: 'नमस्ते दोस्त' });
+    const audioEnd = await englishBrowser.waitForMessage('translation_audio_end');
+
+    expect(audioEnd.hasFailed).toBe(true);
+    expect(servers.fakeSpeechServer.receivedRequests).toHaveLength(3);
+  });
+
   test('an utterance after a slow one waits until the first one has been spoken', async () => {
     let speechRequestCount = 0;
     const { hindiBrowser, englishBrowser } = await startRoomWithSpeech(ELEVENLABS_ENV, () => {

@@ -534,7 +534,22 @@ Format: **Decision**, **Why**, **Trade-off**, **Revisit when**.
   slow uplink), but the API can. A few 80 ms gaps of silence are inaudible to the transcriber, while a broken
   stream loses a whole sentence. And a translated call should sound translated by default. The real voice
   under it is a choice for people who want it, not something everyone has to tune out.
+- **Added after the third live call (2 Nov evening).** The network the phones used lost 57% of packets
+  past the router. Late audio arrived all at once after the API had padded the gap, and one stream got
+  34 s ahead, so Meta ended it ("Audio processing backlog too large"). Cartesia's free plan also answered
+  429 "too many concurrent requests". So:
+  3. **A stream may run at most 1.5 s ahead.** Past that, quiet frames (`isQuietAudioFrame` in
+     `packages/shared`: RMS under 1% of full scale) are dropped until it's back on time. Past 8 s, every
+     frame is dropped: audio that late is no use to a conversation.
+  4. **A phone with a backed-up uplink sends only speech.** When more than 0.5 s of audio sits unsent in
+     the socket (`bufferedAmount`), quiet frames are left out; the API pads the silence back in. Past 1 s,
+     the call screen says "Weak connection: … hears you late" until the uplink keeps up for 3 s.
+  5. **The voice API is retried on 429**, after 250 ms and then 600 ms, before the phone's own voice
+     takes over.
+  6. **The status line says when to talk**: "Speak now", "Listening… pause when you're done", and
+     "…your mic is paused" while their translation plays (D-019 pauses it).
 - **Trade-off:** If a phone's uplink stalls and then sends everything at once, the padded silence plus the
-  late audio can put the stream ahead of real time. Meta tolerates a few seconds ahead (the 4 s connect
-  queue, D-017). Fewer people will discover the original voice.
+  late audio can put the stream ahead of real time; 3 bounds that. A soft start of speech under 1% RMS
+  can be dropped while the stream is ahead, or the uplink behind. Fewer people will discover the original
+  voice.
 

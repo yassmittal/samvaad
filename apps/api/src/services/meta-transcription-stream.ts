@@ -2,6 +2,7 @@ import {
   BYTES_PER_FRAME,
   BYTES_PER_SAMPLE,
   FRAME_DURATION_MILLISECONDS,
+  isQuietAudioFrame,
   SAMPLE_RATE_HERTZ,
 } from '@samvaad/shared';
 import type { FastifyBaseLogger } from 'fastify';
@@ -12,6 +13,7 @@ import {
   metaHandshakeResponseSchema,
   parseMetaTranscriptionEvent,
 } from '../lib/meta-transcription-events';
+import { shouldDropLateAudioFrame } from '../lib/should-drop-late-audio-frame';
 
 const TRANSCRIPTION_MODEL_ID = 'muse-voice-transcribe-1.0';
 // Matches SAMPLE_RATE_HERTZ; Meta resamples 16 kHz to its native 24 kHz (D-005, D-009).
@@ -48,7 +50,8 @@ type MetaTranscriptionStreamOptions = {
   keywords: string[];
   /**
    * When the forwarded audio falls this far behind real time, silence makes up the rest, so Meta
-   * doesn't end the stream (D-024). `0` forwards only what the phone sends.
+   * doesn't end the stream; and when it runs ahead, quiet frames are dropped (D-024). `0`
+   * forwards exactly what the phone sends.
    */
   maximumAudioLagMilliseconds: number;
   callbacks: TranscriptionStreamCallbacks;
@@ -91,6 +94,7 @@ export function createMetaTranscriptionStream({
   let streamingStartedAtEpochMilliseconds = 0;
   let audioSentBytes = 0;
   let silencePaddingFrameCount = 0;
+  let droppedLateFrameCount = 0;
   let pacingInterval: ReturnType<typeof setInterval> | null = null;
 
   const handshakeTimeout = setTimeout(() => {
@@ -106,6 +110,7 @@ export function createMetaTranscriptionStream({
           : Date.now() - streamingStartedAtEpochMilliseconds,
       audioSentMilliseconds: calculateAudioDurationMilliseconds(audioSentBytes),
       silencePaddingMilliseconds: silencePaddingFrameCount * FRAME_DURATION_MILLISECONDS,
+      droppedLateAudioMilliseconds: droppedLateFrameCount * FRAME_DURATION_MILLISECONDS,
     };
   }
 
@@ -137,6 +142,17 @@ export function createMetaTranscriptionStream({
       lastAudioFrameReceivedAtEpochMilliseconds = nowEpochMilliseconds;
     }
     silencePaddingFrameCount += paddingFrameCount;
+  }
+
+  /** Late audio after the API padded the gap: skip quiet frames until back on time (D-024). */
+  function isLateFrameToDrop(frame: Uint8Array): boolean {
+    if (maximumAudioLagMilliseconds === 0) {
+      return false;
+    }
+    const audioLeadMilliseconds =
+      calculateAudioDurationMilliseconds(audioSentBytes) -
+      (Date.now() - streamingStartedAtEpochMilliseconds);
+    return shouldDropLateAudioFrame({ audioLeadMilliseconds, isQuiet: isQuietAudioFrame(frame) });
   }
 
   function fail(reason: string): void {
@@ -283,6 +299,10 @@ export function createMetaTranscriptionStream({
   return {
     sendAudioFrame(frame) {
       if (state === 'ending' || state === 'closed') {
+        return;
+      }
+      if (state === 'streaming' && isLateFrameToDrop(frame)) {
+        droppedLateFrameCount += 1;
         return;
       }
       audioReceivedBytes += frame.byteLength;

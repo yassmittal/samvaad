@@ -124,6 +124,7 @@ function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) 
     findMicrophoneAnalyserNode,
     findMicrophoneStream,
     isSendingRealAudio,
+    isConnectionWeak,
     iceServers,
     sendClientMessage,
     subscribeToWebrtcSignals,
@@ -199,6 +200,7 @@ function RoomCall({ roomConversation }: { roomConversation: RoomConversation }) 
           captions={captions}
           isSpeaking={isSpeaking}
           isReconnecting={!isConnected || !otherParticipant.isConnected}
+          isConnectionWeak={isConnectionWeak}
           originalVoice={
             originalVoice.isConnected
               ? {

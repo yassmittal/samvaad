@@ -34,6 +34,8 @@ type ConversationSocketClientOptions = {
 export type ConversationSocketClient = {
   sendClientMessage: (message: ClientMessage) => void;
   sendAudioFrame: (frame: ArrayBuffer) => void;
+  /** Bytes sent but not yet on the network: grows when the uplink can't keep up (D-024). */
+  findBufferedByteCount: () => number;
   /** Starts over after the client gave up (status `closed` or `replaced`). */
   reconnect: () => void;
   close: () => void;
@@ -150,6 +152,9 @@ export function createConversationSocketClient({
       if (socket?.readyState === WebSocket.OPEN) {
         socket.send(frame);
       }
+    },
+    findBufferedByteCount() {
+      return socket?.readyState === WebSocket.OPEN ? socket.bufferedAmount : 0;
     },
     reconnect() {
       reconnectAttemptCount = 0;

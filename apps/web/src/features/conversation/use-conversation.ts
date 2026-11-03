@@ -1,10 +1,11 @@
 'use client';
 
-import type {
-  ConversationContext,
-  LanguageCode,
-  ServerMessage,
-  TranslationCompleteMessage,
+import {
+  type ConversationContext,
+  isQuietAudioFrame,
+  type LanguageCode,
+  type ServerMessage,
+  type TranslationCompleteMessage,
 } from '@samvaad/shared';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { webEnv } from '@/config/env';
@@ -24,6 +25,9 @@ import {
 import { unlockSpeech } from '../speech-output/unlock-speech';
 import { useSpeechOutput } from '../speech-output/use-speech-output';
 import { INITIAL_CONVERSATION_STATE, reduceConversation } from './conversation-reducer';
+import { HEALTHY_UPLINK, shouldSkipQuietFrame, updateUplinkHealth } from './track-uplink-backlog';
+
+const UPLINK_CHECK_MILLISECONDS = 500;
 
 type TranslationArrival = {
   speechEndToTranslationCompleteMilliseconds: number;
@@ -88,11 +92,36 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
   const microphone = useMicrophone({
     onAudioFrame(frame) {
       const outgoingFrame = microphoneGate.toOutgoingFrame(frame);
-      if (outgoingFrame !== null) {
-        socketClientRef.current?.sendAudioFrame(outgoingFrame);
+      const socketClient = socketClientRef.current;
+      if (outgoingFrame === null || socketClient === null) {
+        return;
       }
+      // A slow uplink gets speech only; the API pads the silence back in (D-024).
+      if (
+        shouldSkipQuietFrame({
+          bufferedByteCount: socketClient.findBufferedByteCount(),
+          isQuiet: isQuietAudioFrame(new Uint8Array(outgoingFrame)),
+        })
+      ) {
+        return;
+      }
+      socketClient.sendAudioFrame(outgoingFrame);
     },
   });
+
+  // Whether this phone's audio is reaching the API late, to say so on screen (D-024).
+  const [isConnectionWeak, setIsConnectionWeak] = useState(false);
+  useEffect(() => {
+    let uplinkHealth = HEALTHY_UPLINK;
+    const interval = setInterval(() => {
+      uplinkHealth = updateUplinkHealth(uplinkHealth, {
+        bufferedByteCount: socketClientRef.current?.findBufferedByteCount() ?? 0,
+        nowEpochMilliseconds: Date.now(),
+      });
+      setIsConnectionWeak(uplinkHealth.isWeak);
+    }, UPLINK_CHECK_MILLISECONDS);
+    return () => clearInterval(interval);
+  }, []);
 
   const closeMicrophone = useCallback(() => {
     // Stop capturing first, so no frame follows the "closed" message.
@@ -292,6 +321,7 @@ export function useConversation({ onSocketOpen, onServerMessage }: ConversationO
     findMicrophoneAnalyserNode: microphone.findAnalyserNode,
     findMicrophoneStream: microphone.findMediaStream,
     isSendingRealAudio,
+    isConnectionWeak,
     repeatTranslation,
     updateConversationContext,
     endConversation,

@@ -4,6 +4,9 @@ import { alignToWholeSamples } from '../lib/align-to-whole-samples';
 import type { ApiEnv, SpeechProvider } from '../plugins/env';
 
 export const SPEECH_SYNTHESIS_TIMEOUT_MILLISECONDS = 10_000;
+const TOO_MANY_REQUESTS_STATUS = 429;
+// Two retries, then the phone's own voice: past a second, a late voice is worse than a plain one.
+const RATE_LIMIT_RETRY_DELAYS_MILLISECONDS = [250, 600];
 // Cartesia versions its API by date; this is the one the request below is written against.
 const CARTESIA_API_VERSION = '2025-04-16';
 
@@ -127,13 +130,28 @@ export function createSpeechSynthesisClient({
     async *streamSpeech(input: StreamSpeechInput): AsyncGenerator<Uint8Array> {
       const { url, init } = buildRequest(providerSettings, input);
       let response: Response;
-      try {
-        response = await fetch(url, {
-          ...init,
-          signal: AbortSignal.any([input.signal, AbortSignal.timeout(timeoutMilliseconds)]),
-        });
-      } catch (error) {
-        throw new SpeechSynthesisFailedError(`${provider} request failed: ${String(error)}`);
+      // Free plans cap concurrent requests (Cartesia answers 429): wait a moment and try again
+      // rather than fall back to the phone's own voice (D-024).
+      for (let attemptIndex = 0; ; attemptIndex += 1) {
+        try {
+          response = await fetch(url, {
+            ...init,
+            signal: AbortSignal.any([input.signal, AbortSignal.timeout(timeoutMilliseconds)]),
+          });
+        } catch (error) {
+          throw new SpeechSynthesisFailedError(`${provider} request failed: ${String(error)}`);
+        }
+        const retryDelayMilliseconds = RATE_LIMIT_RETRY_DELAYS_MILLISECONDS[attemptIndex];
+        if (
+          response.status !== TOO_MANY_REQUESTS_STATUS ||
+          retryDelayMilliseconds === undefined ||
+          input.signal.aborted
+        ) {
+          break;
+        }
+        await response.body?.cancel();
+        logger.debug({ provider, attemptIndex }, 'voice API busy (429): retrying');
+        await Bun.sleep(retryDelayMilliseconds);
       }
       if (!response.ok || response.body === null) {
         const responseText = await response.text().catch(() => '');
